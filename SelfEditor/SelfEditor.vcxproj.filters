@@ -1,0 +1,122 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="ソース ファイル">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="ヘッダー ファイル">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="リソース ファイル">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Core">
+      <UniqueIdentifier>{a1b2c3d4-0001-0000-0000-000000000000}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Core\Event">
+      <UniqueIdentifier>{a1b2c3d4-0002-0000-0000-000000000000}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Core\Audio">
+      <UniqueIdentifier>{a1b2c3d4-0009-0000-0000-000000000000}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Core\Chart">
+      <UniqueIdentifier>{a1b2c3d4-0003-0000-0000-000000000000}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Core\Timing">
+      <UniqueIdentifier>{a1b2c3d4-0004-0000-0000-000000000000}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Game">
+      <UniqueIdentifier>{a1b2c3d4-0005-0000-0000-000000000000}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Editor">
+      <UniqueIdentifier>{a1b2c3d4-0006-0000-0000-000000000000}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ThirdParty">
+      <UniqueIdentifier>{a1b2c3d4-0007-0000-0000-000000000000}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ThirdParty\imgui">
+      <UniqueIdentifier>{a1b2c3d4-0008-0000-0000-000000000000}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ThirdParty\minimp3">
+      <UniqueIdentifier>{a1b2c3d4-0010-0000-0000-000000000000}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Core\Audio\AudioPlayer.cpp">
+      <Filter>Core\Audio</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Chart\ChartIO.cpp">
+      <Filter>Core\Chart</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\EditorApp.cpp">
+      <Filter>Editor</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\TimelineEditor.cpp">
+      <Filter>Editor</Filter>
+    </ClCompile>
+    <ClCompile Include="Game\EventStream.cpp">
+      <Filter>Game</Filter>
+    </ClCompile>
+    <ClCompile Include="ThirdParty\imgui\imgui.cpp">
+      <Filter>ThirdParty\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="ThirdParty\imgui\imgui_draw.cpp">
+      <Filter>ThirdParty\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="ThirdParty\imgui\imgui_tables.cpp">
+      <Filter>ThirdParty\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="ThirdParty\imgui\imgui_widgets.cpp">
+      <Filter>ThirdParty\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="ThirdParty\imgui\imgui_impl_win32.cpp">
+      <Filter>ThirdParty\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="ThirdParty\imgui\imgui_impl_dx11.cpp">
+      <Filter>ThirdParty\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="main.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Core\Audio\AudioPlayer.h">
+      <Filter>Core\Audio</Filter>
+    </ClInclude>
+    <ClInclude Include="minimp3\minimp3.h">
+      <Filter>ThirdParty\minimp3</Filter>
+    </ClInclude>
+    <ClInclude Include="minimp3\minimp3_ex.h">
+      <Filter>ThirdParty\minimp3</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Chart\Chart.h">
+      <Filter>Core\Chart</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Chart\ChartIO.h">
+      <Filter>Core\Chart</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Event\Event.h">
+      <Filter>Core\Event</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Event\EventType.h">
+      <Filter>Core\Event</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Timing\Timing.h">
+      <Filter>Core\Timing</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\EditorApp.h">
+      <Filter>Editor</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\TimelineEditor.h">
+      <Filter>Editor</Filter>
+    </ClInclude>
+    <ClInclude Include="Game\EventStream.h">
+      <Filter>Game</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>
