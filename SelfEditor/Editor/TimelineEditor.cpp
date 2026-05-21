@@ -11,8 +11,8 @@ static const char* wallLabel(Wall w)
 {
     switch (w) {
     case Wall::Up:    return "Up";
-    case Wall::Down:  return "Dn";
     case Wall::Left:  return "Lt";
+    case Wall::Down:  return "Dn";
     case Wall::Right: return "Rt";
     default:          return "??";
     }
@@ -21,24 +21,25 @@ static const char* wallLabel(Wall w)
 static ImU32 eventColor(EventType t)
 {
     switch (t) {
-    case EventType::Enemy:    return IM_COL32(255,  80,  80, 220);
-    case EventType::Obstacle: return IM_COL32(255, 160,  30, 220);
-    case EventType::Gravity:  return IM_COL32(180,  80, 255, 220);
-    case EventType::Jump:     return IM_COL32( 60, 220, 100, 220);
-    default:                  return IM_COL32(255, 255, 255, 220);
+    case EventType::Tap:    return IM_COL32(255,  80,  80, 220);
+    case EventType::Hold:   return IM_COL32( 80, 160, 255, 220);
+    case EventType::Orb:    return IM_COL32(255, 220,  50, 220);
+    case EventType::Object: return IM_COL32(180,  80, 255, 220);
+    default:                return IM_COL32(255, 255, 255, 220);
     }
 }
 
+// 壁背景色: Up / Left / Down / Right
 static const ImU32 kWallBg[4] = {
     IM_COL32(35, 65, 35, 255),   // Up    - 緑
-    IM_COL32(65, 35, 35, 255),   // Down  - 赤
     IM_COL32(35, 35, 65, 255),   // Left  - 青
+    IM_COL32(65, 35, 35, 255),   // Down  - 赤
     IM_COL32(55, 50, 30, 255),   // Right - 黄
 };
 static const ImU32 kWallBgAlt[4] = {
     IM_COL32(40, 72, 40, 255),
-    IM_COL32(72, 40, 40, 255),
     IM_COL32(40, 40, 72, 255),
+    IM_COL32(72, 40, 40, 255),
     IM_COL32(62, 57, 35, 255),
 };
 
@@ -71,6 +72,10 @@ void TimelineEditor::render()
             m_redoStack.pop_back();
         }
     }
+
+    // Escape で Hold pending キャンセル
+    if (ImGui::IsKeyPressed(ImGuiKey_Escape))
+        m_holdPending = false;
 
     renderMenuBar();
     renderControls();
@@ -127,7 +132,7 @@ void TimelineEditor::renderControls()
     ImGui::SameLine();
 
     // BPM
-    ImGui::SetNextItemWidth(80.0f);
+    ImGui::SetNextItemWidth(90.0f);
     ImGui::InputFloat("BPM", &m_chart.bpm, 1.0f, 10.0f, "%.1f");
     if (m_chart.bpm < 1.0f) m_chart.bpm = 1.0f;
 
@@ -152,25 +157,25 @@ void TimelineEditor::renderControls()
     ImGui::SameLine();
 
     // イベントタイプ
-    const char* typeLabels[] = { "Enemy", "Obstacle", "Gravity", "Jump" };
+    const char* typeLabels[] = { "Tap", "Hold", "Orb", "Object" };
     int typeIdx = static_cast<int>(m_selectedType);
     ImGui::SetNextItemWidth(90.0f);
     if (ImGui::Combo("Type", &typeIdx, typeLabels, 4))
-        m_selectedType = static_cast<EventType>(typeIdx);
-
-    if (m_selectedType == EventType::Gravity)
     {
-        ImGui::SameLine();
-        const char* dirLabels[] = { "Up", "Down", "Left", "Right" };
-        int dirIdx = static_cast<int>(m_selectedDir);
-        ImGui::SetNextItemWidth(80.0f);
-        if (ImGui::Combo("Dir", &dirIdx, dirLabels, 4))
-            m_selectedDir = static_cast<GravityDirection>(dirIdx);
+        m_selectedType = static_cast<EventType>(typeIdx);
+        m_holdPending  = false;  // タイプ変更でキャンセル
     }
 
-    // 操作説明
     ImGui::SameLine();
-    ImGui::TextDisabled("  LClick=Place/Toggle  RClick=Delete  Wheel=Scroll");
+
+    // オフセット
+    ImGui::SetNextItemWidth(90.0f);
+    ImGui::InputFloat("Offset(s)", &m_offsetSec, 0.01f, 0.1f, "%.3f");
+
+    ImGui::SameLine();
+
+    // 操作説明
+    //ImGui::TextDisabled("  LClick=Place/Toggle  RClick=Delete  Wheel=Scroll  Esc=Cancel");
 
     // ---- 2行目: 音楽 & トランスポート ----
     static char musicBuf[256] = "";
@@ -210,11 +215,20 @@ void TimelineEditor::renderControls()
     // 現在時刻と beat 表示
     if (m_audio.isLoaded())
     {
-        float t    = m_audio.currentTimeSeconds();
+        float t    = m_audio.currentTimeSeconds() - m_offsetSec;
         float dur  = m_audio.durationSeconds();
         float beat = Timing::secondsToBeat(t, m_chart.bpm);
         ImGui::SameLine();
         ImGui::Text("%.2f / %.2f sec   beat: %.2f", t, dur, beat);
+    }
+
+    // Hold pending 表示
+    if (m_holdPending)
+    {
+        ImGui::SameLine();
+        ImGui::TextColored(ImVec4(0.3f, 0.6f, 1.0f, 1.0f),
+            "  [Hold] 始点設定済み (wall=%s beat=%.2f) - 終点をクリック / Esc でキャンセル",
+            wallLabel(m_holdStartWall), m_holdStartBeat);
     }
 }
 
@@ -240,6 +254,11 @@ void TimelineEditor::renderTimeline()
     // beat -> pixel
     auto beatToX = [&](float beat) -> float {
         return origin.x + labelWidth + (beat - m_scrollBeat) / m_zoomBeats * tlWidth;
+    };
+
+    // 壁の行Y範囲
+    auto wallRowY = [&](Wall w) -> float {
+        return origin.y + headerHeight + static_cast<int>(w) * 3 * rowHeight;
     };
 
     // ---- 行背景 & ラベル ----
@@ -283,7 +302,6 @@ void TimelineEditor::renderTimeline()
         dl->AddLine(ImVec2(x, origin.y),
                     ImVec2(x, origin.y + totalH), col, thickness);
 
-        // ヘッダーに小節番号を表示 (4beat ごと)
         if (isMeasure)
         {
             char buf[16];
@@ -303,25 +321,84 @@ void TimelineEditor::renderTimeline()
     }
 
     // ---- イベント描画 ----
+    float clipL = origin.x + labelWidth;
+    float clipR = origin.x + labelWidth + tlWidth;
+
     for (const auto& e : m_chart.events)
     {
         float x = beatToX(e.beat);
-        if (x < origin.x + labelWidth - 8 || x > origin.x + labelWidth + tlWidth + 8) continue;
-
         ImU32 col = eventColor(e.type);
 
-        if (e.type == EventType::Gravity)
+        if (e.type == EventType::Hold)
         {
-            float yTop = origin.y + headerHeight;
-            float yBot = yTop + rowHeight * numLanes;
-            dl->AddLine(ImVec2(x, yTop), ImVec2(x, yBot), col, 2.0f);
-            dl->AddCircleFilled(ImVec2(x, yTop + 8), 5.0f, col);
+            float x2   = beatToX(e.endBeat);
+            float sy = wallRowY(e.wall);
+            float ey = wallRowY(e.endWall);
+
+            if (e.wall == e.endWall)
+            {
+                // 同一壁: 横バー
+                float y1 = sy + 2;
+                float y2 = sy + 3 * rowHeight - 2;
+                if (x2 > clipL && x < clipR)
+                {
+                    dl->AddRectFilled(ImVec2(std::max(x, clipL), y1),
+                                      ImVec2(std::min(x2, clipR), y2), col);
+                    dl->AddRect(ImVec2(std::max(x, clipL), y1),
+                                ImVec2(std::min(x2, clipR), y2),
+                                IM_COL32(200, 220, 255, 200), 3.0f);
+                }
+            }
+            else
+            {
+                // 壁またぎ: 始点上下・終点上下を結んだ四角形（平行四辺形）
+                if (x2 > clipL && x < clipR)
+                {
+                    ImVec2 p1(x,  sy + 2);                   // 始点・上
+                    ImVec2 p2(x,  sy + 3 * rowHeight - 2);   // 始点・下
+                    ImVec2 p3(x2, ey + 3 * rowHeight - 2);   // 終点・下
+                    ImVec2 p4(x2, ey + 2);                   // 終点・上
+                    dl->AddQuadFilled(p1, p2, p3, p4, col);
+                    dl->AddQuad(p1, p2, p3, p4, IM_COL32(200, 220, 255, 200), 2.0f);
+                }
+            }
         }
         else
         {
+            if (x < clipL - 8 || x > clipR + 8) continue;
+
             int   row = static_cast<int>(e.wall) * 3 + e.lane;
             float cy  = origin.y + headerHeight + (row + 0.5f) * rowHeight;
-            dl->AddCircleFilled(ImVec2(x, cy), rowHeight * 0.32f, col);
+            float r   = rowHeight * 0.32f;
+
+            switch (e.type) {
+            case EventType::Tap:
+                dl->AddCircleFilled(ImVec2(x, cy), r, col);
+                break;
+            case EventType::Orb:
+                dl->AddCircle(ImVec2(x, cy), r, col, 0, 2.5f);
+                break;
+            case EventType::Object:
+                dl->AddRectFilled(ImVec2(x - r, cy - r), ImVec2(x + r, cy + r), col);
+                break;
+            default:
+                dl->AddCircleFilled(ImVec2(x, cy), r, col);
+                break;
+            }
+        }
+    }
+
+    // Hold pending フィードバック（始点マーカー）
+    if (m_holdPending)
+    {
+        float px  = beatToX(m_holdStartBeat);
+        float sy  = wallRowY(m_holdStartWall);
+        if (px >= clipL && px <= clipR)
+        {
+            dl->AddLine(ImVec2(px, sy),
+                        ImVec2(px, sy + 3 * rowHeight),
+                        IM_COL32(80, 160, 255, 180), 2.0f);
+            dl->AddText(ImVec2(px + 3, sy + 2), IM_COL32(80, 160, 255, 255), "H>");
         }
     }
 
@@ -352,20 +429,61 @@ void TimelineEditor::renderTimeline()
 
             if (ImGui::IsItemClicked(ImGuiMouseButton_Left))
             {
-                pushUndo();
-                toggleEvent(beat, clickWall, clickLane);
+                if (m_selectedType == EventType::Hold)
+                {
+                    if (!m_holdPending)
+                    {
+                        // 1回目: 始点記録
+                        m_holdPending   = true;
+                        m_holdStartBeat = beat;
+                        m_holdStartWall = clickWall;
+                    }
+                    else
+                    {
+                        // 2回目: Hold 生成（壁またぎ可）
+                        pushUndo();
+                        Event e;
+                        e.type    = EventType::Hold;
+                        e.wall    = m_holdStartWall;
+                        e.endWall = clickWall;
+                        e.lane    = 1;
+                        e.beat    = std::min(m_holdStartBeat, beat);
+                        e.endBeat = std::max(m_holdStartBeat, beat);
+                        m_chart.events.push_back(e);
+                        m_holdPending = false;
+                    }
+                }
+                else
+                {
+                    m_holdPending = false;
+                    pushUndo();
+                    toggleEvent(beat, clickWall, clickLane);
+                }
             }
 
             if (ImGui::IsItemClicked(ImGuiMouseButton_Right))
             {
-                pushUndo();
-                auto& ev = m_chart.events;
-                ev.erase(std::remove_if(ev.begin(), ev.end(), [&](const Event& e) {
-                    if (e.type == EventType::Gravity)
-                        return fabsf(e.beat - beat) < m_snapBeat * 0.5f;
-                    return fabsf(e.beat - beat) < m_snapBeat * 0.5f
-                        && e.wall == clickWall && e.lane == clickLane;
-                }), ev.end());
+                if (m_holdPending)
+                {
+                    m_holdPending = false;
+                }
+                else
+                {
+                    pushUndo();
+                    auto& ev = m_chart.events;
+                    ev.erase(std::remove_if(ev.begin(), ev.end(), [&](const Event& e) {
+                        if (e.type == EventType::Hold)
+                        {
+                            // クリックした壁が始点か終点に一致し、beat範囲内なら削除
+                            bool wallMatch = (e.wall == clickWall || e.endWall == clickWall);
+                            bool beatMatch = (beat >= e.beat - m_snapBeat * 0.5f &&
+                                             beat <= e.endBeat + m_snapBeat * 0.5f);
+                            return wallMatch && beatMatch;
+                        }
+                        return fabsf(e.beat - beat) < m_snapBeat * 0.5f
+                            && e.wall == clickWall && e.lane == clickLane;
+                    }), ev.end());
+                }
             }
         }
     }
@@ -373,17 +491,15 @@ void TimelineEditor::renderTimeline()
     // ---- 再生ヘッド ----
     if (m_audio.isLoaded())
     {
-        float timeSec      = m_audio.currentTimeSeconds();
+        float timeSec      = m_audio.currentTimeSeconds() - m_offsetSec;
         float playheadBeat = Timing::secondsToBeat(timeSec, m_chart.bpm);
         float px           = beatToX(playheadBeat);
 
-        if (px >= origin.x + labelWidth && px <= origin.x + labelWidth + tlWidth)
+        if (px >= clipL && px <= clipR)
         {
-            // 縦線
             dl->AddLine(ImVec2(px, origin.y + headerHeight),
                         ImVec2(px, origin.y + totalH),
                         IM_COL32(255, 220, 0, 220), 2.0f);
-            // 上部の三角マーカー
             dl->AddTriangleFilled(
                 ImVec2(px - 6, origin.y),
                 ImVec2(px + 6, origin.y),
@@ -391,7 +507,6 @@ void TimelineEditor::renderTimeline()
                 IM_COL32(255, 220, 0, 220));
         }
 
-        // 再生中: 再生ヘッドが画面端に近づいたら自動スクロール
         if (m_audio.isPlaying())
         {
             if (playheadBeat > m_scrollBeat + m_zoomBeats * 0.85f)
@@ -401,7 +516,6 @@ void TimelineEditor::renderTimeline()
         }
     }
 
-    // カーソルを canvas の下に移動
     ImGui::Dummy(ImVec2(labelWidth + tlWidth, totalH));
 }
 
@@ -417,32 +531,19 @@ void TimelineEditor::toggleEvent(float beat, Wall wall, int lane)
 {
     auto& ev = m_chart.events;
 
-    if (m_selectedType == EventType::Gravity)
-    {
-        auto it = std::find_if(ev.begin(), ev.end(), [&](const Event& e) {
-            return e.type == EventType::Gravity && fabsf(e.beat - beat) < m_snapBeat * 0.5f;
-        });
-        if (it != ev.end()) { ev.erase(it); return; }
-
-        Event e;
-        e.beat       = beat;
-        e.type       = EventType::Gravity;
-        e.gravityDir = m_selectedDir;
-        ev.push_back(e);
-        return;
-    }
-
     auto it = std::find_if(ev.begin(), ev.end(), [&](const Event& e) {
-        return e.type != EventType::Gravity
-            && fabsf(e.beat - beat) < m_snapBeat * 0.5f
+        if (e.type == EventType::Hold) return false;
+        return fabsf(e.beat - beat) < m_snapBeat * 0.5f
             && e.wall == wall && e.lane == lane;
     });
     if (it != ev.end()) { ev.erase(it); return; }
 
     Event e;
-    e.beat = beat;
-    e.type = m_selectedType;
-    e.wall = wall;
-    e.lane = lane;
+    e.beat    = beat;
+    e.endBeat = beat;
+    e.type    = m_selectedType;
+    e.wall    = wall;
+    e.endWall = wall;
+    e.lane    = lane;
     ev.push_back(e);
 }

@@ -3,13 +3,12 @@
 
 struct Event
 {
-    float            beat       = 0.0f;
-    EventType        type       = EventType::Enemy;
+    float     beat    = 0.0f;
+    float     endBeat = 0.0f;  // Hold のみ使用
 
-    // Enemy / Obstacle / Jump で使用
-    Wall             wall       = Wall::Up;
-    int              lane       = 0;          // 0-2 (wall 内のレーン番号)
+    EventType type    = EventType::Tap;
 
-    // Gravity イベントのみ使用
-    GravityDirection gravityDir = GravityDirection::Down;
+    Wall      wall    = Wall::Up;
+    Wall      endWall = Wall::Up;  // Hold のみ使用（壁またぎ対応）
+    int       lane    = 0;         // 0-2 (wall 内のレーン番号)、Hold は常に 1
 };

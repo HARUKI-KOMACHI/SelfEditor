@@ -2,24 +2,16 @@
 
 enum class EventType
 {
-    Enemy,
-    Obstacle,
-    Gravity,
-    Jump,
+    Tap,
+    Hold,
+    Orb,
+    Object,
 };
 
 enum class Wall
 {
     Up,
-    Down,
     Left,
-    Right,
-};
-
-enum class GravityDirection
-{
-    Up,
     Down,
-    Left,
     Right,
 };

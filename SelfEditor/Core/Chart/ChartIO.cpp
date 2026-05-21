@@ -10,20 +10,20 @@ static std::string eventTypeToString(EventType t)
 {
     switch (t)
     {
-    case EventType::Enemy:    return "Enemy";
-    case EventType::Obstacle: return "Obstacle";
-    case EventType::Gravity:  return "Gravity";
-    case EventType::Jump:     return "Jump";
-    default:                  return "Enemy";
+    case EventType::Tap:    return "Tap";
+    case EventType::Hold:   return "Hold";
+    case EventType::Orb:    return "Orb";
+    case EventType::Object: return "Object";
+    default:                return "Tap";
     }
 }
 
 static EventType stringToEventType(const std::string& s)
 {
-    if (s == "Obstacle") return EventType::Obstacle;
-    if (s == "Gravity")  return EventType::Gravity;
-    if (s == "Jump")     return EventType::Jump;
-    return EventType::Enemy;
+    if (s == "Hold")   return EventType::Hold;
+    if (s == "Orb")    return EventType::Orb;
+    if (s == "Object") return EventType::Object;
+    return EventType::Tap;
 }
 
 static std::string wallToString(Wall w)
@@ -31,8 +31,8 @@ static std::string wallToString(Wall w)
     switch (w)
     {
     case Wall::Up:    return "Up";
-    case Wall::Down:  return "Down";
     case Wall::Left:  return "Left";
+    case Wall::Down:  return "Down";
     case Wall::Right: return "Right";
     default:          return "Up";
     }
@@ -40,30 +40,10 @@ static std::string wallToString(Wall w)
 
 static Wall stringToWall(const std::string& s)
 {
-    if (s == "Down")  return Wall::Down;
     if (s == "Left")  return Wall::Left;
+    if (s == "Down")  return Wall::Down;
     if (s == "Right") return Wall::Right;
     return Wall::Up;
-}
-
-static std::string gravityDirToString(GravityDirection d)
-{
-    switch (d)
-    {
-    case GravityDirection::Up:    return "Up";
-    case GravityDirection::Down:  return "Down";
-    case GravityDirection::Left:  return "Left";
-    case GravityDirection::Right: return "Right";
-    default:                      return "Down";
-    }
-}
-
-static GravityDirection stringToGravityDir(const std::string& s)
-{
-    if (s == "Up")    return GravityDirection::Up;
-    if (s == "Left")  return GravityDirection::Left;
-    if (s == "Right") return GravityDirection::Right;
-    return GravityDirection::Down;
 }
 
 // ---- 保存 ----
@@ -80,15 +60,13 @@ bool ChartIO::save(const Chart& chart, const std::string& filePath)
         json ej;
         ej["beat"] = e.beat;
         ej["type"] = eventTypeToString(e.type);
+        ej["wall"] = wallToString(e.wall);
+        ej["lane"] = e.lane;
 
-        if (e.type == EventType::Gravity)
+        if (e.type == EventType::Hold)
         {
-            ej["direction"] = gravityDirToString(e.gravityDir);
-        }
-        else
-        {
-            ej["wall"] = wallToString(e.wall);
-            ej["lane"] = e.lane;
+            ej["endBeat"] = e.endBeat;
+            ej["endWall"] = wallToString(e.endWall);
         }
 
         eventsJson.push_back(ej);
@@ -127,16 +105,19 @@ bool ChartIO::load(const std::string& filePath, Chart& out)
     {
         Event e;
         e.beat = ej.value("beat", 0.0f);
-        e.type = stringToEventType(ej.value("type", "Enemy"));
+        e.type = stringToEventType(ej.value("type", "Tap"));
+        e.wall = stringToWall(ej.value("wall", "Up"));
+        e.lane = ej.value("lane", 0);
 
-        if (e.type == EventType::Gravity)
+        if (e.type == EventType::Hold)
         {
-            e.gravityDir = stringToGravityDir(ej.value("direction", "Down"));
+            e.endBeat = ej.value("endBeat", e.beat);
+            e.endWall = stringToWall(ej.value("endWall", wallToString(e.wall)));
         }
         else
         {
-            e.wall = stringToWall(ej.value("wall", "Up"));
-            e.lane = ej.value("lane", 0);
+            e.endBeat = e.beat;
+            e.endWall = e.wall;
         }
 
         out.events.push_back(e);
