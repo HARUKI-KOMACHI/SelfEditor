@@ -189,7 +189,7 @@ void TimelineEditor::renderControls()
     ImGui::SameLine();
 
     // 操作説明
-    //ImGui::TextDisabled("  LClick=Place/Toggle  RClick=Delete  Wheel=Scroll  Esc=Cancel");
+    ImGui::TextDisabled("  LClick=Place/Toggle  RClick=Delete  Wheel=Scroll  Esc=Cancel");
 
     // ---- 2行目: 音楽 & トランスポート ----
     ImGui::SetNextItemWidth(220.0f);
