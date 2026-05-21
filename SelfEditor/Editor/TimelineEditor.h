@@ -30,6 +30,8 @@ private:
 
     AudioPlayer m_audio;
     std::string m_musicPath;
+    char        m_musicBuf[256]    = {};
+    bool        m_draggingPlayhead = false;
 
     std::vector<std::vector<Event>> m_undoStack;
     std::vector<std::vector<Event>> m_redoStack;
