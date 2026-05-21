@@ -30,6 +30,8 @@ private:
 
     AudioPlayer m_audio;
     std::string m_musicPath;
+    char        m_musicBuf[256]    = {};
+    bool        m_draggingPlayhead = false;
 
     // Hold 2クリック配置用
     bool  m_holdPending   = false;

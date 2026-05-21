@@ -1,6 +1,7 @@
 #include "TimelineEditor.h"
 #include <imgui.h>
 #include <algorithm>
+#include "algorithm"
 #include <cmath>
 #include "../Core/Chart/ChartIO.h"
 #include "../Core/Timing/Timing.h"
@@ -107,8 +108,21 @@ void TimelineEditor::renderMenuBar()
         if (ImGui::MenuItem("Open"))
         {
             Chart tmp;
-            if (ChartIO::load(m_filePath, tmp)) { m_chart = tmp; m_statusMsg = "Loaded: " + m_filePath; m_statusOk = true; }
-            else                                { m_statusMsg = "Load failed: " + m_filePath;            m_statusOk = false; }
+            if (ChartIO::load(m_filePath, tmp))
+            {
+                m_chart = tmp;
+                m_statusMsg = "Loaded: " + m_filePath;
+                m_statusOk  = true;
+
+                if (!m_chart.musicPath.empty())
+                {
+                    snprintf(m_musicBuf, sizeof(m_musicBuf), "%s", m_chart.musicPath.c_str());
+                    m_musicPath = "Assets/music/" + m_chart.musicPath;
+                    if (!m_audio.load(m_musicPath))
+                        m_statusMsg += "  (music load failed)";
+                }
+            }
+            else { m_statusMsg = "Load failed: " + m_filePath; m_statusOk = false; }
         }
         if (ImGui::MenuItem("Save"))
         {
@@ -178,15 +192,15 @@ void TimelineEditor::renderControls()
     //ImGui::TextDisabled("  LClick=Place/Toggle  RClick=Delete  Wheel=Scroll  Esc=Cancel");
 
     // ---- 2行目: 音楽 & トランスポート ----
-    static char musicBuf[256] = "";
     ImGui::SetNextItemWidth(220.0f);
-    ImGui::InputText("Music", musicBuf, sizeof(musicBuf));
+    ImGui::InputText("Music", m_musicBuf, sizeof(m_musicBuf));
     ImGui::SameLine();
     if (ImGui::Button("Load"))
     {
-        m_musicPath = "Assets/music/" + std::string(musicBuf);
+        m_musicPath = "Assets/music/" + std::string(m_musicBuf);
         if (m_audio.load(m_musicPath))
         {
+            m_chart.musicPath = std::string(m_musicBuf);
             m_statusMsg = "Loaded: " + m_musicPath;
             m_statusOk  = true;
         }
@@ -402,6 +416,56 @@ void TimelineEditor::renderTimeline()
         }
     }
 
+    // ---- シークバードラッグ ----
+    if (m_audio.isLoaded())
+    {
+        float phBeat = Timing::secondsToBeat(m_audio.currentTimeSeconds(), m_chart.bpm);
+        float phX    = beatToX(phBeat);
+        ImVec2 mp    = ImGui::GetIO().MousePos;
+
+        bool inTimeline = mp.x >= origin.x + labelWidth && mp.x <= origin.x + labelWidth + tlWidth
+                       && mp.y >= origin.y              && mp.y <= origin.y + totalH;
+
+        if (!m_draggingPlayhead && inTimeline && fabsf(mp.x - phX) <= 8.0f
+            && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+        {
+            m_draggingPlayhead = true;
+        }
+
+        if (m_draggingPlayhead)
+        {
+            if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
+            {
+                float relX    = std::max(0.0f, std::min(mp.x - (origin.x + labelWidth), tlWidth));
+                float beat    = m_scrollBeat + (relX / tlWidth) * m_zoomBeats;
+                float seekSec = Timing::beatToSeconds(std::max(0.0f, beat), m_chart.bpm);
+                m_audio.seekSeconds(std::min(seekSec, m_audio.durationSeconds()));
+
+                // エッジスクロール
+                const float edgeZone    = 60.0f;
+                const float scrollSpeed = m_zoomBeats * 2.0f;
+                float dt      = ImGui::GetIO().DeltaTime;
+                float tlLeft  = origin.x + labelWidth;
+                float tlRight = tlLeft + tlWidth;
+
+                if (mp.x < tlLeft + edgeZone)
+                {
+                    float t = 1.0f - (mp.x - tlLeft) / edgeZone;
+                    m_scrollBeat = std::max(0.0f, m_scrollBeat - scrollSpeed * t * dt);
+                }
+                else if (mp.x > tlRight - edgeZone)
+                {
+                    float t = (mp.x - (tlRight - edgeZone)) / edgeZone;
+                    m_scrollBeat += scrollSpeed * t * dt;
+                }
+            }
+            else
+            {
+                m_draggingPlayhead = false;
+            }
+        }
+    }
+
     // ---- マウス操作 ----
     ImGui::SetCursorScreenPos(ImVec2(origin.x + labelWidth, origin.y + headerHeight));
     ImGui::InvisibleButton("##tl", ImVec2(tlWidth, rowHeight * numLanes));
@@ -427,7 +491,7 @@ void TimelineEditor::renderTimeline()
             Wall clickWall = static_cast<Wall>(row / 3);
             int  clickLane = row % 3;
 
-            if (ImGui::IsItemClicked(ImGuiMouseButton_Left))
+            if (ImGui::IsItemClicked(ImGuiMouseButton_Left) && !m_draggingPlayhead)
             {
                 if (m_selectedType == EventType::Hold)
                 {
