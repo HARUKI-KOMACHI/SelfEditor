@@ -2,10 +2,10 @@
 
 enum class EventType
 {
-    Tap,
+    Enemy,
     Hold,
     Orb,
-    Object,
+    Barrier,
 };
 
 enum class Wall

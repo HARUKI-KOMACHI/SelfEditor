@@ -6,7 +6,7 @@ struct Event
     float     beat    = 0.0f;
     float     endBeat = 0.0f;  // Hold のみ使用
 
-    EventType type    = EventType::Tap;
+    EventType type    = EventType::Enemy;
 
     Wall      wall    = Wall::Up;
     Wall      endWall = Wall::Up;  // Hold のみ使用（壁またぎ対応）

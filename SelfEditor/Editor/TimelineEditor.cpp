@@ -1,12 +1,22 @@
 #include "TimelineEditor.h"
 #include <imgui.h>
 #include <algorithm>
-#include "algorithm"
 #include <cmath>
 #include "../Core/Chart/ChartIO.h"
 #include "../Core/Timing/Timing.h"
 
 // ---- ヘルパー ----
+
+static const char* seNameForType(EventType t)
+{
+    switch (t) {
+    case EventType::Enemy:    return "Enemy";
+    case EventType::Hold:   return "Hold";
+    case EventType::Orb:    return "Orb";
+    case EventType::Barrier: return "Barrier";
+    default:                return "Enemy";
+    }
+}
 
 static const char* wallLabel(Wall w)
 {
@@ -22,10 +32,10 @@ static const char* wallLabel(Wall w)
 static ImU32 eventColor(EventType t)
 {
     switch (t) {
-    case EventType::Tap:    return IM_COL32(255,  80,  80, 220);
+    case EventType::Enemy:    return IM_COL32(255,  80,  80, 220);
     case EventType::Hold:   return IM_COL32( 80, 160, 255, 220);
     case EventType::Orb:    return IM_COL32(255, 220,  50, 220);
-    case EventType::Object: return IM_COL32(180,  80, 255, 220);
+    case EventType::Barrier: return IM_COL32(180,  80, 255, 220);
     default:                return IM_COL32(255, 255, 255, 220);
     }
 }
@@ -57,6 +67,20 @@ void TimelineEditor::render()
         ImGuiWindowFlags_NoBringToFrontOnFocus                           |
         ImGuiWindowFlags_NoScrollbar       | ImGuiWindowFlags_NoScrollWithMouse);
 
+    // SE 初期化（初回のみ）
+    if (!m_seInitialized)
+    {
+        m_seInitialized = true;
+        if (m_sePlayer.init())
+        {
+            // 音量値 (0.0〜1.0) は SE ファイルの録音レベルに合わせてここで調整する
+            m_sePlayer.loadSe("Enemy",   "Assets/SE/EnemySE.wav",   1.0f);
+            m_sePlayer.loadSe("Hold",    "Assets/SE/HoldSE.wav",    1.0f);
+            m_sePlayer.loadSe("Orb",     "Assets/SE/OrbSE.mp3",     1.0f);
+            m_sePlayer.loadSe("Barrier", "Assets/SE/BarrierSE.wav", 1.0f);
+        }
+    }
+
     // Undo / Redo
     if (ImGui::GetIO().KeyCtrl)
     {
@@ -74,9 +98,56 @@ void TimelineEditor::render()
         }
     }
 
+    // Space: 再生/一時停止トグル
+    if (ImGui::IsKeyPressed(ImGuiKey_Space))
+    {
+        if (m_audio.isPlaying()) m_audio.pause();
+        else                     m_audio.play();
+    }
+    // Enter: 停止して先頭へ戻る
+    if (ImGui::IsKeyPressed(ImGuiKey_Enter))
+        m_audio.stop();
+
+    // M: 現在位置をマーカーに記録 / Shift+M: マーカー位置へジャンプ
+    if (ImGui::IsKeyPressed(ImGuiKey_M))
+    {
+        if (ImGui::GetIO().KeyShift)
+        {
+            if (m_markerBeat >= 0.0f)
+            {
+                float seekSec = Timing::beatToSeconds(m_markerBeat, m_chart.bpm) + m_offsetSec;
+                m_audio.seekSeconds(std::max(0.0f, seekSec));
+            }
+        }
+        else if (m_audio.isLoaded())
+        {
+            float t = m_audio.currentTimeSeconds() - m_offsetSec;
+            m_markerBeat = Timing::secondsToBeat(t, m_chart.bpm);
+        }
+    }
+
     // Escape で Hold pending キャンセル
     if (ImGui::IsKeyPressed(ImGuiKey_Escape))
         m_holdPending = false;
+
+    // SE トリガー処理
+    if (m_audio.isLoaded())
+    {
+        float t    = m_audio.currentTimeSeconds() - m_offsetSec;
+        float beat = Timing::secondsToBeat(t, m_chart.bpm);
+
+        if (m_audio.isPlaying() && m_lastPlayheadBeat >= 0.0f)
+        {
+            float delta = beat - m_lastPlayheadBeat;
+            if (delta > 0.0f && delta < kSeekThresholdBeats)
+            {
+                for (const auto& e : m_chart.events)
+                    if (e.beat > m_lastPlayheadBeat && e.beat <= beat)
+                        m_sePlayer.play(seNameForType(e.type));
+            }
+        }
+        m_lastPlayheadBeat = beat;
+    }
 
     renderMenuBar();
     renderControls();
@@ -120,6 +191,8 @@ void TimelineEditor::renderMenuBar()
                     m_musicPath = "Assets/music/" + m_chart.musicPath;
                     if (!m_audio.load(m_musicPath))
                         m_statusMsg += "  (music load failed)";
+                    else
+                        buildWaveform();
                 }
             }
             else { m_statusMsg = "Load failed: " + m_filePath; m_statusOk = false; }
@@ -171,7 +244,7 @@ void TimelineEditor::renderControls()
     ImGui::SameLine();
 
     // イベントタイプ
-    const char* typeLabels[] = { "Tap", "Hold", "Orb", "Object" };
+    const char* typeLabels[] = { "Enemy", "Hold", "Orb", "Barrier" };
     int typeIdx = static_cast<int>(m_selectedType);
     ImGui::SetNextItemWidth(90.0f);
     if (ImGui::Combo("Type", &typeIdx, typeLabels, 4))
@@ -201,6 +274,7 @@ void TimelineEditor::renderControls()
         if (m_audio.load(m_musicPath))
         {
             m_chart.musicPath = std::string(m_musicBuf);
+            buildWaveform();
             m_statusMsg = "Loaded: " + m_musicPath;
             m_statusOk  = true;
         }
@@ -225,6 +299,43 @@ void TimelineEditor::renderControls()
     }
     ImGui::SameLine();
     if (ImGui::Button("  []  ")) m_audio.stop();
+
+    // マーカー
+    ImGui::SameLine();
+    ImGui::Spacing(); ImGui::SameLine();
+    if (ImGui::Button("[M]"))
+    {
+        if (m_audio.isLoaded())
+        {
+            float t = m_audio.currentTimeSeconds() - m_offsetSec;
+            m_markerBeat = Timing::secondsToBeat(t, m_chart.bpm);
+        }
+    }
+    if (m_markerBeat >= 0.0f)
+    {
+        ImGui::SameLine();
+        if (ImGui::Button("->M"))
+        {
+            float seekSec = Timing::beatToSeconds(m_markerBeat, m_chart.bpm) + m_offsetSec;
+            m_audio.seekSeconds(std::max(0.0f, seekSec));
+        }
+        ImGui::SameLine();
+        ImGui::TextDisabled("beat %.2f", m_markerBeat);
+    }
+
+    // 再生速度
+    ImGui::SameLine();
+    const char* speedLabels[] = { "0.25x", "0.5x", "0.75x", "1.0x" };
+    const float speedValues[] = { 0.25f, 0.5f, 0.75f, 1.0f };
+    ImGui::SetNextItemWidth(70.0f);
+    if (ImGui::Combo("Speed", &m_speedIdx, speedLabels, 4))
+        m_audio.setSpeed(speedValues[m_speedIdx]);
+
+    // BGM 音量
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(100.0f);
+    if (ImGui::SliderFloat("Vol", &m_bgmVolume, 0.0f, 1.0f, "%.2f"))
+        m_audio.setVolume(m_bgmVolume);
 
     // 現在時刻と beat 表示
     if (m_audio.isLoaded())
@@ -291,6 +402,34 @@ void TimelineEditor::renderTimeline()
             char lbl[12];
             snprintf(lbl, sizeof(lbl), "%s-%d", wallLabel(static_cast<Wall>(wi)), li);
             dl->AddText(ImVec2(origin.x + 4, rowY + 5), IM_COL32(200, 200, 200, 255), lbl);
+        }
+    }
+
+    // ---- 波形表示 ----
+    if (!m_waveformPeaks.empty())
+    {
+        float waveXL  = origin.x + labelWidth;
+        float waveXR  = origin.x + labelWidth + tlWidth;
+        float waveY   = origin.y + headerHeight;
+        float waveH   = rowHeight * numLanes;
+        float midY    = waveY + waveH * 0.5f;
+        float ampH    = waveH * 0.4f;
+        float smpRate = (float)m_audio.waveFormat().nSamplesPerSec;
+        float audioDur = m_audio.durationSeconds();
+
+        for (float px = waveXL; px < waveXR; px += 1.0f)
+        {
+            float beat = m_scrollBeat + (px - waveXL) / tlWidth * m_zoomBeats;
+            float sec  = Timing::beatToSeconds(beat, m_chart.bpm) + m_offsetSec;
+            if (sec < 0.0f || sec > audioDur) continue;
+
+            int peakIdx = (int)((uint32_t)(sec * smpRate) / kWaveChunkFrames);
+            if (peakIdx >= (int)m_waveformPeaks.size()) continue;
+
+            const WaveformPeak& p = m_waveformPeaks[peakIdx];
+            float y1 = midY + p.minVal * ampH;
+            float y2 = midY + p.maxVal * ampH;
+            dl->AddLine(ImVec2(px, y1), ImVec2(px, y2), IM_COL32(0, 200, 200, 50));
         }
     }
 
@@ -386,19 +525,36 @@ void TimelineEditor::renderTimeline()
             float r   = rowHeight * 0.32f;
 
             switch (e.type) {
-            case EventType::Tap:
+            case EventType::Enemy:
                 dl->AddCircleFilled(ImVec2(x, cy), r, col);
                 break;
             case EventType::Orb:
                 dl->AddCircle(ImVec2(x, cy), r, col, 0, 2.5f);
                 break;
-            case EventType::Object:
+            case EventType::Barrier:
                 dl->AddRectFilled(ImVec2(x - r, cy - r), ImVec2(x + r, cy + r), col);
                 break;
             default:
                 dl->AddCircleFilled(ImVec2(x, cy), r, col);
                 break;
             }
+        }
+    }
+
+    // ---- シーク位置マーカー ----
+    if (m_markerBeat >= 0.0f)
+    {
+        float mx = beatToX(m_markerBeat);
+        if (mx >= clipL && mx <= clipR)
+        {
+            dl->AddLine(ImVec2(mx, origin.y + headerHeight),
+                        ImVec2(mx, origin.y + totalH),
+                        IM_COL32(255, 140, 0, 180), 1.5f);
+            dl->AddTriangleFilled(
+                ImVec2(mx - 5, origin.y),
+                ImVec2(mx + 5, origin.y),
+                ImVec2(mx,     origin.y + 10),
+                IM_COL32(255, 140, 0, 220));
         }
     }
 
@@ -589,6 +745,36 @@ void TimelineEditor::pushUndo()
     m_redoStack.clear();
     if (m_undoStack.size() > 100)
         m_undoStack.erase(m_undoStack.begin());
+}
+
+void TimelineEditor::buildWaveform()
+{
+    m_waveformPeaks.clear();
+    if (!m_audio.isLoaded()) return;
+
+    const auto&    pcm   = m_audio.pcmData();
+    const auto&    fmt   = m_audio.waveFormat();
+    uint32_t       total = m_audio.totalFrames();
+    int            ch    = fmt.nChannels;
+    const int16_t* s     = reinterpret_cast<const int16_t*>(pcm.data());
+
+    m_waveformPeaks.reserve((total + kWaveChunkFrames - 1) / kWaveChunkFrames);
+    for (uint32_t f = 0; f < total; f += (uint32_t)kWaveChunkFrames)
+    {
+        uint32_t end  = std::min(f + (uint32_t)kWaveChunkFrames, total);
+        float    minV =  1.0f;
+        float    maxV = -1.0f;
+        for (uint32_t i = f; i < end; ++i)
+        {
+            for (int c = 0; c < ch; ++c)
+            {
+                float v = s[i * ch + c] / 32768.0f;
+                if (v < minV) minV = v;
+                if (v > maxV) maxV = v;
+            }
+        }
+        m_waveformPeaks.push_back({ minV, maxV });
+    }
 }
 
 void TimelineEditor::toggleEvent(float beat, Wall wall, int lane)

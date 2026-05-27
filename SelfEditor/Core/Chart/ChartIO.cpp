@@ -10,10 +10,10 @@ static std::string eventTypeToString(EventType t)
 {
     switch (t)
     {
-    case EventType::Tap:    return "Tap";
+    case EventType::Enemy:    return "Tap";
     case EventType::Hold:   return "Hold";
     case EventType::Orb:    return "Orb";
-    case EventType::Object: return "Object";
+    case EventType::Barrier: return "Barrier";
     default:                return "Tap";
     }
 }
@@ -22,8 +22,8 @@ static EventType stringToEventType(const std::string& s)
 {
     if (s == "Hold")   return EventType::Hold;
     if (s == "Orb")    return EventType::Orb;
-    if (s == "Object") return EventType::Object;
-    return EventType::Tap;
+    if (s == "Barrier") return EventType::Barrier;
+    return EventType::Enemy;
 }
 
 static std::string wallToString(Wall w)

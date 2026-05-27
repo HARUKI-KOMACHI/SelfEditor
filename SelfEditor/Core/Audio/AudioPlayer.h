@@ -19,11 +19,20 @@ public:
     void  pause();
     void  stop();
     void  seekSeconds(float seconds);
+    void  setSpeed(float ratio);   // 再生速度設定 (0.25 / 0.5 / 0.75 / 1.0)
+    float getSpeed() const { return m_speed; }
+    void  setVolume(float vol);    // BGM音量設定 (0.0〜1.0)
+    float getVolume() const { return m_volume; }
 
     float currentTimeSeconds() const;
     float durationSeconds()    const;
     bool  isPlaying() const { return m_playing; }
     bool  isLoaded()  const { return !m_pcmData.empty(); }
+
+    // 波形表示用アクセサ
+    const std::vector<uint8_t>& pcmData()     const { return m_pcmData; }
+    const WAVEFORMATEX&          waveFormat()  const { return m_fmt; }
+    uint32_t                     totalFrames() const { return m_totalFrames; }
 
 private:
     bool initXAudio2();
@@ -40,4 +49,6 @@ private:
     float                   m_baseSec         = 0.0f;
     uint64_t                m_samplesAtStart  = 0;
     bool                    m_playing         = false;
+    float                   m_speed           = 1.0f;
+    float                   m_volume          = 1.0f;
 };
