@@ -16,6 +16,8 @@ public:
     // volume  : 音量係数 (0.0〜1.0) — SE ファイルの録音レベルに合わせて調整する
     bool loadSe(const std::string& name, const std::string& filePath, float volume = 1.0f);
     void play(const std::string& name);
+    void playLoop(const std::string& name);
+    void stopLoop(const std::string& name);
     void unloadAll();
 
 private:
@@ -28,6 +30,7 @@ private:
         float                volume     = 1.0f;  // ← SEごとの音量 (0.0〜1.0)
         IXAudio2SourceVoice* voices[kVoicePoolSize] = {};
         int                  nextVoice  = 0;
+        IXAudio2SourceVoice* loopVoice  = nullptr;  // ループ再生専用ボイス
     };
 
     IXAudio2*               m_xaudio2 = nullptr;
