@@ -138,7 +138,8 @@ float AudioPlayer::currentTimeSeconds() const
     XAUDIO2_VOICE_STATE state = {};
     m_source->GetState(&state);
     uint64_t elapsed = state.SamplesPlayed - m_samplesAtStart;
-    return m_baseSec + (float)elapsed / (float)m_fmt.nSamplesPerSec;
+    float t = m_baseSec + (float)elapsed / (float)m_fmt.nSamplesPerSec;
+    return std::min(t, durationSeconds());
 }
 
 float AudioPlayer::durationSeconds() const
