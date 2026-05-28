@@ -48,8 +48,9 @@ private:
     // 1フレームで進む beat 量がこれを超えたらシークとみなして SE をスキップする
     static constexpr float kSeekThresholdBeats = 4.0f;
     SePlayer m_sePlayer;
-    bool     m_seInitialized   = false;
+    bool     m_seInitialized    = false;
     float    m_lastPlayheadBeat = -1.0f;
+    bool     m_holdLoopActive   = false;
 
     // シーク位置マーカー (-1.0 = 未設定)
     float m_markerBeat = -1.0f;

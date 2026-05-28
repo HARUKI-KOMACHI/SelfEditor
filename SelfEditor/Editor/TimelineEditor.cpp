@@ -76,7 +76,7 @@ void TimelineEditor::render()
             // 音量値 (0.0〜1.0) は SE ファイルの録音レベルに合わせてここで調整する
             m_sePlayer.loadSe("Enemy",   "Assets/SE/EnemySE.wav",   1.0f);
             m_sePlayer.loadSe("Hold",    "Assets/SE/HoldSE.wav",    1.0f);
-            m_sePlayer.loadSe("Orb",     "Assets/SE/OrbSE.mp3",     1.0f);
+            m_sePlayer.loadSe("Orb",     "Assets/SE/OrbSE.wav",     1.0f);
             m_sePlayer.loadSe("Barrier", "Assets/SE/BarrierSE.wav", 1.0f);
         }
     }
@@ -143,9 +143,36 @@ void TimelineEditor::render()
             {
                 for (const auto& e : m_chart.events)
                     if (e.beat > m_lastPlayheadBeat && e.beat <= beat)
-                        m_sePlayer.play(seNameForType(e.type));
+                        if (e.type != EventType::Hold)  // Hold はループで管理
+                            m_sePlayer.play(seNameForType(e.type));
             }
         }
+
+        // Hold ループ SE 管理
+        bool holdActive = false;
+        if (m_audio.isPlaying())
+        {
+            for (const auto& e : m_chart.events)
+            {
+                if (e.type == EventType::Hold)
+                {
+                    float s  = std::min(e.beat, e.endBeat);
+                    float en = std::max(e.beat, e.endBeat);
+                    if (beat >= s && beat <= en) { holdActive = true; break; }
+                }
+            }
+        }
+        if (holdActive && !m_holdLoopActive)
+        {
+            m_sePlayer.playLoop("Hold");
+            m_holdLoopActive = true;
+        }
+        else if (!holdActive && m_holdLoopActive)
+        {
+            m_sePlayer.stopLoop("Hold");
+            m_holdLoopActive = false;
+        }
+
         m_lastPlayheadBeat = beat;
     }
 

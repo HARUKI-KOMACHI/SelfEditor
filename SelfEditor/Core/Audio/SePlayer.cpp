@@ -40,6 +40,10 @@ bool SePlayer::loadSe(const std::string& name, const std::string& filePath, floa
         entry.voices[i]->SetVolume(volume);
     }
 
+    if (FAILED(m_xaudio2->CreateSourceVoice(&entry.loopVoice, &entry.fmt)))
+        return false;
+    entry.loopVoice->SetVolume(volume);
+
     m_entries.push_back(std::move(entry));
     return true;
 }
@@ -67,10 +71,43 @@ void SePlayer::play(const std::string& name)
     }
 }
 
+void SePlayer::playLoop(const std::string& name)
+{
+    for (auto& e : m_entries)
+    {
+        if (e.name != name || !e.loopVoice) continue;
+
+        e.loopVoice->Stop();
+        e.loopVoice->FlushSourceBuffers();
+
+        XAUDIO2_BUFFER buf = {};
+        buf.AudioBytes = (UINT32)e.pcmData.size();
+        buf.pAudioData = e.pcmData.data();
+        buf.LoopCount  = XAUDIO2_LOOP_INFINITE;
+        e.loopVoice->SubmitSourceBuffer(&buf);
+        e.loopVoice->Start();
+        return;
+    }
+}
+
+void SePlayer::stopLoop(const std::string& name)
+{
+    for (auto& e : m_entries)
+    {
+        if (e.name != name || !e.loopVoice) continue;
+        e.loopVoice->Stop();
+        e.loopVoice->FlushSourceBuffers();
+        return;
+    }
+}
+
 void SePlayer::unloadAll()
 {
     for (auto& e : m_entries)
+    {
         for (int i = 0; i < kVoicePoolSize; ++i)
             if (e.voices[i]) { e.voices[i]->DestroyVoice(); e.voices[i] = nullptr; }
+        if (e.loopVoice) { e.loopVoice->DestroyVoice(); e.loopVoice = nullptr; }
+    }
     m_entries.clear();
 }
