@@ -2,8 +2,14 @@
 #include <imgui.h>
 #include <algorithm>
 #include <cmath>
+#include <fstream>
+#include <nlohmann/json.hpp>
 #include "../Core/Chart/ChartIO.h"
 #include "../Core/Timing/Timing.h"
+
+using json = nlohmann::json;
+
+static constexpr const char* kEditorSettingsPath = "Assets/editor_settings.json";
 
 // ---- ヘルパー ----
 
@@ -71,13 +77,23 @@ void TimelineEditor::render()
     if (!m_seInitialized)
     {
         m_seInitialized = true;
+        m_seVolumes = {
+            {"Enemy",   1.0f},
+            {"Hold",    1.0f},
+            {"Orb",     1.0f},
+            {"Barrier", 1.0f},
+        };
+        loadEditorSettings();
         if (m_sePlayer.init())
         {
-            // 音量値 (0.0〜1.0) は SE ファイルの録音レベルに合わせてここで調整する
-            m_sePlayer.loadSe("Enemy",   "Assets/SE/EnemySE.wav",   1.0f);
-            m_sePlayer.loadSe("Hold",    "Assets/SE/HoldSE.wav",    1.0f);
-            m_sePlayer.loadSe("Orb",     "Assets/SE/OrbSE.wav",     1.0f);
-            m_sePlayer.loadSe("Barrier", "Assets/SE/BarrierSE.wav", 1.0f);
+            auto vol = [&](const std::string& n) {
+                for (auto& sv : m_seVolumes) if (sv.name == n) return sv.volume;
+                return 1.0f;
+            };
+            m_sePlayer.loadSe("Enemy",   "Assets/SE/EnemySE.wav",   vol("Enemy"));
+            m_sePlayer.loadSe("Hold",    "Assets/SE/HoldSE.wav",    vol("Hold"));
+            m_sePlayer.loadSe("Orb",     "Assets/SE/OrbSE.wav",     vol("Orb"));
+            m_sePlayer.loadSe("Barrier", "Assets/SE/BarrierSE.wav", vol("Barrier"));
         }
     }
 
@@ -199,9 +215,9 @@ void TimelineEditor::renderMenuBar()
     {
         if (ImGui::MenuItem("New"))
         {
-            m_chart     = Chart();
+            m_chart = Chart();
             m_statusMsg = "New chart.";
-            m_statusOk  = true;
+            m_statusOk = true;
         }
         if (ImGui::MenuItem("Open"))
         {
@@ -210,7 +226,7 @@ void TimelineEditor::renderMenuBar()
             {
                 m_chart = tmp;
                 m_statusMsg = "Loaded: " + m_filePath;
-                m_statusOk  = true;
+                m_statusOk = true;
 
                 if (!m_chart.musicPath.empty())
                 {
@@ -227,7 +243,21 @@ void TimelineEditor::renderMenuBar()
         if (ImGui::MenuItem("Save"))
         {
             if (ChartIO::save(m_chart, m_filePath)) { m_statusMsg = "Saved: " + m_filePath; m_statusOk = true; }
-            else                                    { m_statusMsg = "Save failed: " + m_filePath; m_statusOk = false; }
+            else { m_statusMsg = "Save failed: " + m_filePath; m_statusOk = false; }
+        }
+        ImGui::EndMenu();
+    }
+
+    if (ImGui::BeginMenu("SE"))
+    {
+        for (auto& sv : m_seVolumes)
+        {
+            ImGui::SetNextItemWidth(160.0f);
+            if (ImGui::SliderFloat(sv.name.c_str(), &sv.volume, 0.0f, 1.0f, "%.2f"))
+            {
+                m_sePlayer.setVolume(sv.name, sv.volume);
+                saveEditorSettings();
+            }
         }
         ImGui::EndMenu();
     }
@@ -823,4 +853,32 @@ void TimelineEditor::toggleEvent(float beat, Wall wall, int lane)
     e.endWall = wall;
     e.lane    = lane;
     ev.push_back(e);
+}
+
+void TimelineEditor::loadEditorSettings()
+{
+    std::ifstream file(kEditorSettingsPath);
+    if (!file.is_open()) return;
+
+    json j;
+    try { file >> j; } catch (...) { return; }
+
+    if (!j.contains("se_volume")) return;
+    const auto& sv = j["se_volume"];
+    for (auto& entry : m_seVolumes)
+    {
+        if (sv.contains(entry.name))
+            entry.volume = sv[entry.name].get<float>();
+    }
+}
+
+void TimelineEditor::saveEditorSettings()
+{
+    json j;
+    for (const auto& entry : m_seVolumes)
+        j["se_volume"][entry.name] = entry.volume;
+
+    std::ofstream file(kEditorSettingsPath);
+    if (file.is_open())
+        file << j.dump(2);
 }

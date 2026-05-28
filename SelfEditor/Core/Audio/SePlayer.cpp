@@ -101,6 +101,19 @@ void SePlayer::stopLoop(const std::string& name)
     }
 }
 
+void SePlayer::setVolume(const std::string& name, float volume)
+{
+    for (auto& e : m_entries)
+    {
+        if (e.name != name) continue;
+        e.volume = volume;
+        for (int i = 0; i < kVoicePoolSize; ++i)
+            if (e.voices[i]) e.voices[i]->SetVolume(volume);
+        if (e.loopVoice) e.loopVoice->SetVolume(volume);
+        return;
+    }
+}
+
 void SePlayer::unloadAll()
 {
     for (auto& e : m_entries)
