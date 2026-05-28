@@ -146,6 +146,15 @@ void TimelineEditor::render()
     if (ImGui::IsKeyPressed(ImGuiKey_Escape))
         m_holdPending = false;
 
+    // 終端自動停止
+    if (m_audio.isPlaying() &&
+        m_audio.currentTimeSeconds() >= m_audio.durationSeconds())
+    {
+        m_audio.stop();
+        if (m_holdLoopActive) { m_sePlayer.stopLoop("Hold"); m_holdLoopActive = false; }
+        m_lastPlayheadBeat = -1.0f;
+    }
+
     // SE トリガー処理
     if (m_audio.isLoaded())
     {
@@ -283,7 +292,7 @@ void TimelineEditor::renderControls()
     ImGui::SameLine();
 
     // スナップ
-    const char* snapLabels[] = { "1 beat", "1/2", "1/4", "1/8" };
+    const char* snapLabels[] = { "1/4", "1/8", "1/16", "1/32" };
     const float snapValues[] = { 1.0f, 0.5f, 0.25f, 0.125f };
     int snapIdx = 2;
     for (int i = 0; i < 4; ++i)
