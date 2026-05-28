@@ -52,6 +52,13 @@ private:
     float    m_lastPlayheadBeat = -1.0f;
     bool     m_holdLoopActive   = false;
 
+    // SE 音量（ノーツ種類ごと）
+    struct SeVolumeEntry { std::string name; float volume; };
+    std::vector<SeVolumeEntry> m_seVolumes;
+
+    void loadEditorSettings();
+    void saveEditorSettings();
+
     // シーク位置マーカー (-1.0 = 未設定)
     float m_markerBeat = -1.0f;
 

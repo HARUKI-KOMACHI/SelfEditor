@@ -18,6 +18,7 @@ public:
     void play(const std::string& name);
     void playLoop(const std::string& name);
     void stopLoop(const std::string& name);
+    void setVolume(const std::string& name, float volume);
     void unloadAll();
 
 private:
