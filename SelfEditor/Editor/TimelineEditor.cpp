@@ -97,7 +97,7 @@ void TimelineEditor::render()
         }
     }
 
-    // Undo / Redo
+    // Undo / Redo / Copy / Paste
     if (ImGui::GetIO().KeyCtrl)
     {
         if (ImGui::IsKeyPressed(ImGuiKey_Z) && !m_undoStack.empty())
@@ -111,6 +111,49 @@ void TimelineEditor::render()
             m_undoStack.push_back(m_chart.events);
             m_chart.events = m_redoStack.back();
             m_redoStack.pop_back();
+        }
+
+        // Ctrl+C: 選択範囲のノーツをコピー
+        if (ImGui::IsKeyPressed(ImGuiKey_C) && m_selectionActive)
+        {
+            m_clipboard.clear();
+            for (const auto& e : m_chart.events)
+            {
+                if (e.type == EventType::Hold)
+                {
+                    // Hold は範囲に完全に収まる場合のみコピー
+                    if (e.beat >= m_selectStart && e.endBeat <= m_selectEnd)
+                        m_clipboard.push_back(e);
+                }
+                else
+                {
+                    if (e.beat >= m_selectStart && e.beat <= m_selectEnd)
+                        m_clipboard.push_back(e);
+                }
+            }
+            if (!m_clipboard.empty())
+            {
+                m_statusMsg = std::to_string(m_clipboard.size()) + " note(s) copied.";
+                m_statusOk  = true;
+            }
+        }
+
+        // Ctrl+V: カーソル位置にペースト
+        if (ImGui::IsKeyPressed(ImGuiKey_V) && !m_clipboard.empty())
+        {
+            // カーソルがタイムライン上にあればその位置、なければ選択開始位置
+            float pasteBase = (m_hoverBeat >= 0.0f) ? m_hoverBeat : m_selectStart;
+            float offset = pasteBase - m_selectStart;
+            pushUndo();
+            for (auto e : m_clipboard)
+            {
+                e.beat    += offset;
+                e.endBeat += offset;
+                if (e.beat >= 0.0f)
+                    m_chart.events.push_back(e);
+            }
+            m_statusMsg = std::to_string(m_clipboard.size()) + " note(s) pasted.";
+            m_statusOk  = true;
         }
     }
 
@@ -129,11 +172,9 @@ void TimelineEditor::render()
     {
         if (ImGui::GetIO().KeyShift)
         {
-            if (m_markerBeat >= 0.0f)
-            {
-                float seekSec = Timing::beatToSeconds(m_markerBeat, m_chart.bpm) + m_offsetSec;
-                m_audio.seekSeconds(std::max(0.0f, seekSec));
-            }
+            // Shift+M: マーカーをカーソル位置のbeatへ移動
+            if (m_hoverBeat >= 0.0f)
+                m_markerBeat = m_hoverBeat;
         }
         else if (m_audio.isLoaded())
         {
@@ -142,9 +183,13 @@ void TimelineEditor::render()
         }
     }
 
-    // Escape で Hold pending キャンセル
+    // Escape で Hold pending・選択をキャンセル
     if (ImGui::IsKeyPressed(ImGuiKey_Escape))
-        m_holdPending = false;
+    {
+        m_holdPending    = false;
+        m_selectionActive = false;
+        m_selectDragging  = false;
+    }
 
     // 終端自動停止
     if (m_audio.isPlaying() &&
@@ -204,6 +249,9 @@ void TimelineEditor::render()
     renderMenuBar();
     renderControls();
     renderTimeline();
+    renderExplain();
+
+    //ImGui::TextDisabled("  LClick=Place/Toggle  RClick=Delete  Wheel=Scroll  Esc=Cancel  Ctrl+Drag=Select  Ctrl+C=Copy  Ctrl+V=Paste@cursor  Header=Seek  M=SetMarker  Shift+M=MoveMarker@cursor  ->M=SeekToMarker");
 
     if (!m_statusMsg.empty())
     {
@@ -327,8 +375,7 @@ void TimelineEditor::renderControls()
 
     ImGui::SameLine();
 
-    // 操作説明
-    ImGui::TextDisabled("  LClick=Place/Toggle  RClick=Delete  Wheel=Scroll  Esc=Cancel");
+    ImGui::TextDisabled("");
 
     // ---- 2行目: 音楽 & トランスポート ----
     ImGui::SetNextItemWidth(220.0f);
@@ -384,6 +431,7 @@ void TimelineEditor::renderControls()
         {
             float seekSec = Timing::beatToSeconds(m_markerBeat, m_chart.bpm) + m_offsetSec;
             m_audio.seekSeconds(std::max(0.0f, seekSec));
+            m_scrollBeat = std::max(0.0f, m_markerBeat - m_zoomBeats * 0.3f);
         }
         ImGui::SameLine();
         ImGui::TextDisabled("beat %.2f", m_markerBeat);
@@ -436,6 +484,25 @@ void TimelineEditor::renderTimeline()
     float  totalH    = headerHeight + rowHeight * numLanes;
 
     ImDrawList* dl = ImGui::GetWindowDrawList();
+
+    // ---- マウスカーソルの beat 位置を毎フレーム更新 ----
+    {
+        ImVec2 mp = ImGui::GetIO().MousePos;
+        float tlLeft = origin.x + labelWidth;
+        float tlRight = tlLeft + tlWidth;
+        if (mp.x >= tlLeft && mp.x <= tlRight
+            && mp.y >= origin.y && mp.y <= origin.y + totalH)
+        {
+            float relX = mp.x - tlLeft;
+            float raw  = m_scrollBeat + (relX / tlWidth) * m_zoomBeats;
+            m_hoverBeat = roundf(raw / m_snapBeat) * m_snapBeat;
+            if (m_hoverBeat < 0.0f) m_hoverBeat = 0.0f;
+        }
+        else
+        {
+            m_hoverBeat = -1.0f;
+        }
+    }
 
     // 背景
     dl->AddRectFilled(origin,
@@ -607,6 +674,24 @@ void TimelineEditor::renderTimeline()
         }
     }
 
+    // ---- 範囲選択ハイライト ----
+    if (m_selectionActive && m_selectStart < m_selectEnd)
+    {
+        float sx = std::max(beatToX(m_selectStart), clipL);
+        float ex = std::min(beatToX(m_selectEnd),   clipR);
+        if (ex > sx)
+        {
+            dl->AddRectFilled(
+                ImVec2(sx, origin.y + headerHeight),
+                ImVec2(ex, origin.y + totalH),
+                IM_COL32(100, 150, 255, 40));
+            dl->AddRect(
+                ImVec2(sx, origin.y + headerHeight),
+                ImVec2(ex, origin.y + totalH),
+                IM_COL32(100, 150, 255, 140), 0.0f, 0, 1.5f);
+        }
+    }
+
     // ---- シーク位置マーカー ----
     if (m_markerBeat >= 0.0f)
     {
@@ -621,6 +706,17 @@ void TimelineEditor::renderTimeline()
                 ImVec2(mx + 5, origin.y),
                 ImVec2(mx,     origin.y + 10),
                 IM_COL32(255, 140, 0, 220));
+
+            // 三角形クリックで再生ヘッドをマーカー位置へジャンプ
+            ImVec2 mp = ImGui::GetIO().MousePos;
+            bool overTriangle = fabsf(mp.x - mx) <= 8.0f
+                             && mp.y >= origin.y
+                             && mp.y <= origin.y + 14.0f;
+            if (overTriangle && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !m_draggingPlayhead)
+            {
+                float seekSec = Timing::beatToSeconds(m_markerBeat, m_chart.bpm) + m_offsetSec;
+                m_audio.seekSeconds(std::max(0.0f, seekSec));
+            }
         }
     }
 
@@ -688,6 +784,42 @@ void TimelineEditor::renderTimeline()
         }
     }
 
+    // ---- ヘッダー行クリックで再生ヘッドシーク ----
+    if (m_audio.isLoaded())
+    {
+        ImGui::SetCursorScreenPos(ImVec2(origin.x + labelWidth, origin.y));
+        ImGui::InvisibleButton("##header", ImVec2(tlWidth, headerHeight));
+        if (ImGui::IsItemClicked(ImGuiMouseButton_Left) && !m_draggingPlayhead)
+        {
+            ImVec2 mp = ImGui::GetIO().MousePos;
+            float relX = mp.x - (origin.x + labelWidth);
+            float beat = m_scrollBeat + (relX / tlWidth) * m_zoomBeats;
+            beat = std::max(0.0f, beat);
+            float seekSec = Timing::beatToSeconds(beat, m_chart.bpm) + m_offsetSec;
+            m_audio.seekSeconds(std::max(0.0f, std::min(seekSec, m_audio.durationSeconds())));
+        }
+    }
+
+    // ---- 範囲選択ドラッグ追跡 ----
+    if (m_selectDragging)
+    {
+        if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
+        {
+            ImVec2 mp2  = ImGui::GetIO().MousePos;
+            float relX2 = mp2.x - (origin.x + labelWidth);
+            float curBeat = m_scrollBeat + (relX2 / tlWidth) * m_zoomBeats;
+            curBeat = roundf(curBeat / m_snapBeat) * m_snapBeat;
+            curBeat = std::max(0.0f, curBeat);
+            m_selectStart = std::min(m_selectDragOrigin, curBeat);
+            m_selectEnd   = std::max(m_selectDragOrigin, curBeat);
+            m_selectionActive = (m_selectStart < m_selectEnd);
+        }
+        else
+        {
+            m_selectDragging = false;
+        }
+    }
+
     // ---- マウス操作 ----
     ImGui::SetCursorScreenPos(ImVec2(origin.x + labelWidth, origin.y + headerHeight));
     ImGui::InvisibleButton("##tl", ImVec2(tlWidth, rowHeight * numLanes));
@@ -715,40 +847,53 @@ void TimelineEditor::renderTimeline()
 
             if (ImGui::IsItemClicked(ImGuiMouseButton_Left) && !m_draggingPlayhead)
             {
-                if (m_selectedType == EventType::Hold)
+                if (ImGui::GetIO().KeyCtrl)
                 {
-                    if (!m_holdPending)
+                    // Ctrl+クリック: 範囲選択ドラッグ開始
+                    m_selectDragging   = true;
+                    m_selectDragOrigin = beat;
+                    m_selectionActive  = false;
+                }
+                else if (!m_selectDragging)
+                {
+                    m_selectionActive = false;  // 選択解除
+
+                    if (m_selectedType == EventType::Hold)
                     {
-                        // 1回目: 始点記録
-                        m_holdPending   = true;
-                        m_holdStartBeat = beat;
-                        m_holdStartWall = clickWall;
+                        if (!m_holdPending)
+                        {
+                            // 1回目: 始点記録
+                            m_holdPending   = true;
+                            m_holdStartBeat = beat;
+                            m_holdStartWall = clickWall;
+                        }
+                        else
+                        {
+                            // 2回目: Hold 生成（壁またぎ可）
+                            pushUndo();
+                            Event e;
+                            e.type    = EventType::Hold;
+                            e.wall    = m_holdStartWall;
+                            e.endWall = clickWall;
+                            e.lane    = 1;
+                            e.beat    = std::min(m_holdStartBeat, beat);
+                            e.endBeat = std::max(m_holdStartBeat, beat);
+                            m_chart.events.push_back(e);
+                            m_holdPending = false;
+                        }
                     }
                     else
                     {
-                        // 2回目: Hold 生成（壁またぎ可）
-                        pushUndo();
-                        Event e;
-                        e.type    = EventType::Hold;
-                        e.wall    = m_holdStartWall;
-                        e.endWall = clickWall;
-                        e.lane    = 1;
-                        e.beat    = std::min(m_holdStartBeat, beat);
-                        e.endBeat = std::max(m_holdStartBeat, beat);
-                        m_chart.events.push_back(e);
                         m_holdPending = false;
+                        pushUndo();
+                        toggleEvent(beat, clickWall, clickLane);
                     }
-                }
-                else
-                {
-                    m_holdPending = false;
-                    pushUndo();
-                    toggleEvent(beat, clickWall, clickLane);
                 }
             }
 
             if (ImGui::IsItemClicked(ImGuiMouseButton_Right))
             {
+                m_selectionActive = false;
                 if (m_holdPending)
                 {
                     m_holdPending = false;
@@ -803,6 +948,27 @@ void TimelineEditor::renderTimeline()
     }
 
     ImGui::Dummy(ImVec2(labelWidth + tlWidth, totalH));
+}
+
+void TimelineEditor::renderExplain()
+{
+	ImGui::SetCursorPosY(ImGui::GetCursorPosY() + ImGui::GetStyle().ItemSpacing.y);
+	ImGui::TextWrapped(
+		"操作方法:\n"
+		"- 左クリック: イベント配置 / 範囲選択\n"
+		"- Ctrl+左クリック: 範囲選択開始\n"
+		"- 右クリック: イベント削除\n"
+		"- ホイール: 水平スクロール\n"
+		"- ヘッダー行クリック: 再生ヘッドシーク\n"
+		"- [M] ボタン: マーカーを現在位置にセット\n"
+		"- ->M ボタン: マーカー位置に再生ヘッドジャンプ\n"
+		/*"\n"
+		"Holdイベントの配置:\n"
+		"1. タイプを Hold に設定\n"
+		"2. 壁をクリックして始点を設定\n"
+		"3. 別の壁をクリックして終点を設定（同一壁も可）\n"
+		"4. Esc キーでキャンセル可能（始点のみ）\n"*/
+	);
 }
 
 void TimelineEditor::pushUndo()
