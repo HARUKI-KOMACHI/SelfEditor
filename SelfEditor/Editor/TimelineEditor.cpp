@@ -249,7 +249,7 @@ void TimelineEditor::render()
     renderMenuBar();
     renderControls();
     renderTimeline();
-    renderExplain();
+    //renderExplain();
 
     //ImGui::TextDisabled("  LClick=Place/Toggle  RClick=Delete  Wheel=Scroll  Esc=Cancel  Ctrl+Drag=Select  Ctrl+C=Copy  Ctrl+V=Paste@cursor  Header=Seek  M=SetMarker  Shift+M=MoveMarker@cursor  ->M=SeekToMarker");
 
@@ -948,27 +948,6 @@ void TimelineEditor::renderTimeline()
     }
 
     ImGui::Dummy(ImVec2(labelWidth + tlWidth, totalH));
-}
-
-void TimelineEditor::renderExplain()
-{
-	ImGui::SetCursorPosY(ImGui::GetCursorPosY() + ImGui::GetStyle().ItemSpacing.y);
-	ImGui::TextWrapped(
-		"操作方法:\n"
-		"- 左クリック: イベント配置 / 範囲選択\n"
-		"- Ctrl+左クリック: 範囲選択開始\n"
-		"- 右クリック: イベント削除\n"
-		"- ホイール: 水平スクロール\n"
-		"- ヘッダー行クリック: 再生ヘッドシーク\n"
-		"- [M] ボタン: マーカーを現在位置にセット\n"
-		"- ->M ボタン: マーカー位置に再生ヘッドジャンプ\n"
-		/*"\n"
-		"Holdイベントの配置:\n"
-		"1. タイプを Hold に設定\n"
-		"2. 壁をクリックして始点を設定\n"
-		"3. 別の壁をクリックして終点を設定（同一壁も可）\n"
-		"4. Esc キーでキャンセル可能（始点のみ）\n"*/
-	);
 }
 
 void TimelineEditor::pushUndo()
