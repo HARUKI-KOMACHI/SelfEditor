@@ -5,6 +5,7 @@ DirectX ベースのリズムアクションゲーム向け Timeline Event Edito
 対象ゲームは固定スクロール型リズムアクション（オブジェクトが奥から手前に流れてくる形式）で、重力切り替えギミックを持つステージのイベントを管理する。
 
 ※ファイル容量の関係上実行動画は下記リンク先のzipファイル内にあります
+
 https://github.com/HARUKI-KOMACHI/SelfEditor/releases/tag/moviehttps://github.com/HARUKI-KOMACHI/SelfEditor/releases/tag/movie
 
 ## 操作方法
@@ -60,6 +61,7 @@ SePlayer によるポリフォニック 4 ボイスプールで、再生中の�
 
 ## 実行方法
 下記リンクより最新版のzipファイルを解凍しVisual Studio 2022or2026 で `SelfEditor/SelfEditor.sln` を開き、ビルド後に実行。
+
 https://github.com/HARUKI-KOMACHI/SelfEditor/releaseshttps://github.com/HARUKI-KOMACHI/SelfEditor/releases
 
 制作期間：約6か月（3年次）
