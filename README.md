@@ -59,7 +59,8 @@ SePlayer によるポリフォニック 4 ボイスプールで、再生中の�
 0.25x / 0.5x / 0.75x / 1.0x のスロー再生に対応し、細かい譜面確認が可能。
 
 ## 実行方法
-Visual Studio 2022or2026 で `SelfEditor/SelfEditor.sln` を開き、ビルド後に実行。
+下記リンクより最新版のzipファイルを解凍しVisual Studio 2022or2026 で `SelfEditor/SelfEditor.sln` を開き、ビルド後に実行。
+https://github.com/HARUKI-KOMACHI/SelfEditor/releaseshttps://github.com/HARUKI-KOMACHI/SelfEditor/releases
 
 制作期間：約6か月（3年次）
 
