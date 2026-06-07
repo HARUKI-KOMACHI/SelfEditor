@@ -47,10 +47,12 @@ Esc：Hold 配置キャンセル
 ノーツ位置を秒数ではなく beat 単位で管理することで、BPM 変更時も譜面データが無効にならない設計。
 
 Hold ノーツの壁またぎ対応（始点と終点で異なる壁を指定可能）と、平行四辺形による直感的な視覚表示。
+<img width="1261" height="747" alt="スクリーンショット 2026-06-08 081634" src="https://github.com/user-attachments/assets/93db4a5d-8c63-4b59-87ae-4ebc3c82926c" />
 
 XAudio2 と minimp3 を組み合わせた WAV/MP3 共通ローダーにより、複数フォーマットの音楽ファイルに対応。
 
 波形データをタイムライン背景に重畳表示し、ズーム操作に連動して波形も拡縮。
+<img width="1191" height="313" alt="スクリーンショット 2026-06-08 081706" src="https://github.com/user-attachments/assets/00b6b6b0-5df4-4261-96a6-26a9b2617b21" />
 
 SePlayer によるポリフォニック 4 ボイスプールで、再生中のノーツ通過タイミングに SE を発火。
 
