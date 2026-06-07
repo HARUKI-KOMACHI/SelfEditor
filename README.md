@@ -4,6 +4,9 @@ DirectX ベースのリズムアクションゲーム向け Timeline Event Edito
 一般的な音ゲー譜面エディタではなく、音楽同期イベントを DAW 風タイムラインに配置する Timeline Event Editor として設計。
 対象ゲームは固定スクロール型リズムアクション（オブジェクトが奥から手前に流れてくる形式）で、重力切り替えギミックを持つステージのイベントを管理する。
 
+※ファイル容量の関係上実行動画は下記リンク先のzipファイル内にあります
+https://github.com/HARUKI-KOMACHI/SelfEditor/releases/tag/moviehttps://github.com/HARUKI-KOMACHI/SelfEditor/releases/tag/movie
+
 ## 操作方法
 ### マウス
 左クリック：ノーツ配置 / トグル削除
