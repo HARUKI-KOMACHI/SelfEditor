@@ -6,6 +6,7 @@ enum class EventType
     Hold,
     Orb,
     Barrier,
+    Rainbow,
 };
 
 enum class Wall

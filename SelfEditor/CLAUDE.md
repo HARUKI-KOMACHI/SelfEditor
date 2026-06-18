@@ -26,7 +26,6 @@
 - Undo/Redo（Ctrl+Z / Ctrl+Y、最大100ステップ）
 - MP3 対応（minimp3 シングルヘッダー、`SelfEditor/minimp3/` に配置）
 - ノーツ種類を Enemy/Hold/Orb/Barrier に刷新・形状で視覚的区別
-- HOLDノーツ（2クリック配置・壁またぎ対応・平行四辺形表示）
 - オフセット機能（`Offset(s)` で再生ヘッドをずらす）
 - レーン順変更（Up/Left/Down/Right）
 - ショートカットキー（Space=再生/一時停止トグル、Enter=停止＆先頭へ）
@@ -36,8 +35,14 @@
 - SePlayer（ポリフォニック 4 ボイスプール・SE 別音量制御）
 - AudioLoader（WAV/MP3 共通ローダー、`Core/Audio/AudioLoader.h/.cpp`）
 - シーク位置マーカー（M=再生ヘッド位置をマーカーへ記録、Shift+M=カーソル位置にマーカーを移動、->M ボタン=マーカー位置へシーク＆ビュースクロール、三角形クリックでシーク）
-- コピー&ペースト（Ctrl+ドラッグで範囲選択・青ハイライト表示、Ctrl+C でコピー、Ctrl+V でカーソル位置にペースト、Hold は範囲内に完全に収まるものだけ対象）
+- コピー&ペースト（Ctrl+ドラッグで範囲選択・青ハイライト表示、Ctrl+C でコピー、Ctrl+V でカーソル位置にペースト、Hold/Rainbow は範囲内に完全に収まるものだけ対象）
 - ヘッダー行（小節番号エリア）クリックで再生ヘッドをその beat 位置にシーク
+- Rainbowノーツ追加（壁全体・壁またぎ可・2クリック配置・同一壁は虹色グラデーション・壁またぎはシアン緑単色）
+- Holdノーツ刷新（同一壁・レーンまたぎ可・2クリック配置・同一レーンはバー・異レーンは平行四辺形）
+- JSONメタデータ追加（musicname/musicauthor/scoreauthor/difficulty/thumbnail）
+- エディタ UI 3段構成化（Row1: メタデータ、Row2: ファイル/BPM/スナップ/ズーム/タイプ/オフセット、Row3: 音楽/トランスポート）
+- JSON 保存キー順序の修正（`nlohmann::ordered_json` 使用、挿入順を保持）
+- 日本語フォント対応（`C:\Windows\Fonts\meiryo.ttc` + `GetGlyphRangesJapanese()` で全角入力サポート）
 
 ### 作業未着手
 （なし）
@@ -47,7 +52,7 @@
 - **言語**: C++
 - **ビルド**: Visual Studio 2022 (v145 ツールセット)、ソリューションは `SelfEditor/SelfEditor.sln`
 - **構成**: Debug/Release × Win32/x64
-- **ライブラリ**: DirectX、Dear ImGui、XAudio2、minimp3
+- **ライブラリ**: DirectX、Dear ImGui、XAudio2、minimp3、nlohmann/json
 
 ## ビルド方法
 
@@ -56,6 +61,8 @@ Visual Studio 2022 で `SelfEditor/SelfEditor.sln` を開き、IDE からビル�
 ```
 msbuild SelfEditor/SelfEditor.sln /p:Configuration=Debug /p:Platform=x64
 ```
+
+Release ビルドの実行には exe と同ディレクトリに `Assets/` フォルダを配置すること。
 
 ## 推奨ディレクトリ構造
 
@@ -71,6 +78,8 @@ SelfEditor/
 ├ Game/            # ゲーム側の簡易イベント再生
 ├ Editor/          # ImGui ベースのエディタ UI
 └ Assets/          # 音楽ファイル、JSON 譜面ファイル
+    ├ music/
+    └ SE/
 ```
 
 `Core/` は `Game/` と `Editor/` の両方から共有される。
@@ -81,9 +90,10 @@ SelfEditor/
 | 種類 | 形状 | 説明 |
 |------|------|------|
 | Enemy   | 塗り円 ● | 通常ノーツ（JSON 文字列: `"Tap"`）|
-| Hold    | 平行四辺形バー | 長押し・壁またぎ可 |
+| Hold    | バー or 平行四辺形 | 同一壁・レーンまたぎ可・壁またぎ不可。同一レーンはバー、異レーンは平行四辺形 |
 | Orb     | 中抜き円 ○ | |
 | Barrier | 四角 ■ | |
+| Rainbow | 平行四辺形（虹色） | 壁全体（lane=1 固定）・壁またぎ可・2クリック配置 |
 
 ### beat ベースのタイミング管理（重要）
 
@@ -98,16 +108,17 @@ BPM が変化すると秒ベースのタイムスタンプは無効になるた�
 ### イベント構造体
 
 ```cpp
-enum class EventType { Enemy, Hold, Orb, Barrier };
+enum class EventType { Enemy, Hold, Orb, Barrier, Rainbow };
 enum class Wall      { Up, Left, Down, Right };  // 表示順 = enum値
 
 struct Event {
     float     beat    = 0.0f;
-    float     endBeat = 0.0f;  // Hold のみ使用
+    float     endBeat = 0.0f;  // Hold / Rainbow のみ使用
     EventType type    = EventType::Enemy;
     Wall      wall    = Wall::Up;
-    Wall      endWall = Wall::Up;  // Hold のみ使用（壁またぎ対応）
-    int       lane    = 0;         // 0-2、Hold は常に 1（中央）
+    Wall      endWall = Wall::Up;  // Rainbow のみ使用（壁またぎ対応）
+    int       lane    = 0;         // 0-2、Rainbow は常に 1（中央）
+    int       endLane = 0;         // Hold のみ使用（レーンまたぎ対応）
 };
 ```
 
@@ -117,17 +128,24 @@ struct Event {
 
 ```json
 {
-  "music": "stage01.mp3",
+  "musicname": "シャイニングスター",
+  "musicauthor": "森田交一",
+  "scoreauthor": "R.T",
+  "difficulty": 5.0,
+  "thumbnail": "shiningstar.png",
   "bpm": 160,
+  "music": "stage01.mp3",
   "events": [
     { "beat": 4.0,  "type": "Tap",     "wall": "Up",    "lane": 1 },
-    { "beat": 8.0,  "type": "Hold",    "wall": "Left",  "lane": 1, "endBeat": 10.0, "endWall": "Down" },
+    { "beat": 8.0,  "type": "Hold",    "wall": "Left",  "lane": 0, "endBeat": 10.0, "endLane": 2 },
     { "beat": 12.0, "type": "Orb",     "wall": "Down",  "lane": 0 },
-    { "beat": 16.0, "type": "Barrier", "wall": "Right", "lane": 2 }
+    { "beat": 16.0, "type": "Barrier", "wall": "Right", "lane": 2 },
+    { "beat": 20.0, "type": "Rainbow", "wall": "Up",    "lane": 1, "endBeat": 24.0, "endWall": "Down" }
   ]
 }
 ```
 
+キー順序は `nlohmann::ordered_json` により挿入順を保持。
 音楽ファイルは `Assets/music/` に配置し、Music 欄にはファイル名のみ入力（`Assets/music/` は自動付加）。
 
 ## エディタ操作
@@ -142,9 +160,10 @@ struct Event {
 | M | 再生ヘッド位置をシークマーカーに記録 |
 | Shift+M | カーソル位置にシークマーカーを移動 |
 | Ctrl+Z / Ctrl+Y | Undo / Redo |
-| Esc | Hold pending キャンセル |
+| Esc | Hold / Rainbow pending キャンセル |
 
-Hold 配置: 1回目クリックで始点、2回目クリック（任意の壁）で終点確定。
+Hold 配置: 1回目クリックで始点、2回目クリック（**同一壁**のみ）で終点確定。異なるレーンをクリックするとレーンまたぎになる。
+Rainbow 配置: 1回目クリックで始点、2回目クリック（任意の壁）で終点確定。
 
 ## 開発フェーズ
 
@@ -156,3 +175,4 @@ Hold 配置: 1回目クリックで始点、2回目クリック（任意の壁�
 | 4 | 音楽同期: 音楽再生・再生位置同期・再生ヘッド |
 | 5 | 拡張: ノーツ刷新・Hold・オフセット・レーン順変更 |
 | 6 | 拡張: 波形表示・SE再生・スロー再生・シークマーカー |
+| 7 | 拡張: Rainbow追加・Hold刷新・メタデータ・日本語対応 |

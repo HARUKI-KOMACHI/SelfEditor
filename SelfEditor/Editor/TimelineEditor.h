@@ -31,9 +31,15 @@ private:
     std::string m_statusMsg;
     bool        m_statusOk = true;
 
+    // メタデータバッファ
+    char        m_musicnameBuf[128]   = {};
+    char        m_musicauthorBuf[128] = {};
+    char        m_scoreauthorBuf[128] = {};
+    char        m_thumbnailBuf[128]   = {".png"};
+
     AudioPlayer m_audio;
     std::string m_musicPath;
-    char        m_musicBuf[256] = {};
+    char        m_musicBuf[256] = {".mp3"};
     bool        m_draggingPlayhead = false;
 
     // スロー再生速度 (0=0.25x, 1=0.5x, 2=0.75x, 3=1.0x)
@@ -63,10 +69,11 @@ private:
     // シーク位置マーカー (-1.0 = 未設定)
     float m_markerBeat = -1.0f;
 
-    // Hold 2クリック配置用
+    // Hold / Rainbow 2クリック配置用
     bool  m_holdPending = false;
     float m_holdStartBeat = 0.0f;
     Wall  m_holdStartWall = Wall::Up;
+    int   m_holdStartLane = 0;
 
     std::vector<std::vector<Event>> m_undoStack;
     std::vector<std::vector<Event>> m_redoStack;

@@ -35,6 +35,15 @@ bool EditorApp::init(HWND hwnd)
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGui::StyleColorsDark();
+
+    // 日本語フォント読み込み（ひらがな・カタカナ・常用漢字を含む）
+    ImGuiIO& io = ImGui::GetIO();
+    io.Fonts->AddFontFromFileTTF(
+        "C:\\Windows\\Fonts\\meiryo.ttc",
+        15.0f,
+        nullptr,
+        io.Fonts->GetGlyphRangesJapanese());
+
     ImGui_ImplWin32_Init(hwnd);
     ImGui_ImplDX11_Init(m_device, m_context);
 
