@@ -16,11 +16,12 @@ static constexpr const char* kEditorSettingsPath = "Assets/editor_settings.json"
 static const char* seNameForType(EventType t)
 {
     switch (t) {
-    case EventType::Enemy:    return "Enemy";
-    case EventType::Hold:   return "Hold";
-    case EventType::Orb:    return "Orb";
+    case EventType::Enemy:   return "Enemy";
+    case EventType::Hold:    return "Hold";
+    case EventType::Orb:     return "Orb";
     case EventType::Barrier: return "Barrier";
-    default:                return "Enemy";
+    case EventType::Rainbow: return "Rainbow";
+    default:                 return "Enemy";
     }
 }
 
@@ -38,11 +39,12 @@ static const char* wallLabel(Wall w)
 static ImU32 eventColor(EventType t)
 {
     switch (t) {
-    case EventType::Enemy:    return IM_COL32(255,  80,  80, 220);
-    case EventType::Hold:   return IM_COL32( 80, 160, 255, 220);
-    case EventType::Orb:    return IM_COL32(255, 220,  50, 220);
+    case EventType::Enemy:   return IM_COL32(255,  80,  80, 220);
+    case EventType::Hold:    return IM_COL32( 80, 160, 255, 220);
+    case EventType::Orb:     return IM_COL32(255, 220,  50, 220);
     case EventType::Barrier: return IM_COL32(180,  80, 255, 220);
-    default:                return IM_COL32(255, 255, 255, 220);
+    case EventType::Rainbow: return IM_COL32( 50, 255, 180, 220);
+    default:                 return IM_COL32(255, 255, 255, 220);
     }
 }
 
@@ -82,6 +84,7 @@ void TimelineEditor::render()
             {"Hold",    1.0f},
             {"Orb",     1.0f},
             {"Barrier", 1.0f},
+            {"Rainbow", 1.0f},
         };
         loadEditorSettings();
         if (m_sePlayer.init())
@@ -94,6 +97,7 @@ void TimelineEditor::render()
             m_sePlayer.loadSe("Hold",    "Assets/SE/HoldSE.wav",    vol("Hold"));
             m_sePlayer.loadSe("Orb",     "Assets/SE/OrbSE.wav",     vol("Orb"));
             m_sePlayer.loadSe("Barrier", "Assets/SE/BarrierSE.wav", vol("Barrier"));
+            m_sePlayer.loadSe("Rainbow", "Assets/SE/HoldSE.wav", vol("Rainbow"));
         }
     }
 
@@ -119,9 +123,9 @@ void TimelineEditor::render()
             m_clipboard.clear();
             for (const auto& e : m_chart.events)
             {
-                if (e.type == EventType::Hold)
+                if (e.type == EventType::Hold || e.type == EventType::Rainbow)
                 {
-                    // Hold は範囲に完全に収まる場合のみコピー
+                    // Hold/Rainbow は範囲に完全に収まる場合のみコピー
                     if (e.beat >= m_selectStart && e.endBeat <= m_selectEnd)
                         m_clipboard.push_back(e);
                 }
@@ -213,18 +217,18 @@ void TimelineEditor::render()
             {
                 for (const auto& e : m_chart.events)
                     if (e.beat > m_lastPlayheadBeat && e.beat <= beat)
-                        if (e.type != EventType::Hold)  // Hold はループで管理
+                        if (e.type != EventType::Hold && e.type != EventType::Rainbow)  // Hold/Rainbow はループで管理
                             m_sePlayer.play(seNameForType(e.type));
             }
         }
 
-        // Hold ループ SE 管理
+        // Hold / Rainbow ループ SE 管理
         bool holdActive = false;
         if (m_audio.isPlaying())
         {
             for (const auto& e : m_chart.events)
             {
-                if (e.type == EventType::Hold)
+                if (e.type == EventType::Hold || e.type == EventType::Rainbow)
                 {
                     float s  = std::min(e.beat, e.endBeat);
                     float en = std::max(e.beat, e.endBeat);
@@ -285,6 +289,12 @@ void TimelineEditor::renderMenuBar()
                 m_statusMsg = "Loaded: " + m_filePath;
                 m_statusOk = true;
 
+                // メタデータバッファに反映
+                snprintf(m_musicnameBuf,   sizeof(m_musicnameBuf),   "%s", m_chart.musicname.c_str());
+                snprintf(m_musicauthorBuf, sizeof(m_musicauthorBuf), "%s", m_chart.musicauthor.c_str());
+                snprintf(m_scoreauthorBuf, sizeof(m_scoreauthorBuf), "%s", m_chart.scoreauthor.c_str());
+                snprintf(m_thumbnailBuf,   sizeof(m_thumbnailBuf),   "%s", m_chart.thumbnail.c_str());
+
                 if (!m_chart.musicPath.empty())
                 {
                     snprintf(m_musicBuf, sizeof(m_musicBuf), "%s", m_chart.musicPath.c_str());
@@ -324,22 +334,45 @@ void TimelineEditor::renderMenuBar()
 
 void TimelineEditor::renderControls()
 {
-    // ファイルパス
-    static char pathBuf[256] = "chart.json";
+    // ---- 1行目: メタデータ ----
+    ImGui::SetNextItemWidth(160.0f);
+    if (ImGui::InputText("MusicName", m_musicnameBuf, sizeof(m_musicnameBuf)))
+        m_chart.musicname = m_musicnameBuf;
+    ImGui::SameLine();
+
+    ImGui::SetNextItemWidth(130.0f);
+    if (ImGui::InputText("Author", m_musicauthorBuf, sizeof(m_musicauthorBuf)))
+        m_chart.musicauthor = m_musicauthorBuf;
+    ImGui::SameLine();
+
+    ImGui::SetNextItemWidth(100.0f);
+    if (ImGui::InputText("ScoreBy", m_scoreauthorBuf, sizeof(m_scoreauthorBuf)))
+        m_chart.scoreauthor = m_scoreauthorBuf;
+    ImGui::SameLine();
+
+    ImGui::SetNextItemWidth(70.0f);
+    ImGui::InputFloat("Diff", &m_chart.difficulty, 0.5f, 1.0f, "%.1f");
+    if (m_chart.difficulty < 0.0f) m_chart.difficulty = 0.0f;
+    ImGui::SameLine();
+
+    ImGui::SetNextItemWidth(150.0f);
+    if (ImGui::InputText("Thumbnail", m_thumbnailBuf, sizeof(m_thumbnailBuf)))
+        m_chart.thumbnail = m_thumbnailBuf;
+
+    // ---- 2行目: ファイル・BPM・スナップ・ズーム・タイプ・オフセット ----
+    static char pathBuf[256] = ".json";
     ImGui::SetNextItemWidth(200.0f);
     if (ImGui::InputText("File", pathBuf, sizeof(pathBuf)))
         m_filePath = pathBuf;
 
     ImGui::SameLine();
 
-    // BPM
     ImGui::SetNextItemWidth(90.0f);
     ImGui::InputFloat("BPM", &m_chart.bpm, 1.0f, 10.0f, "%.1f");
     if (m_chart.bpm < 1.0f) m_chart.bpm = 1.0f;
 
     ImGui::SameLine();
 
-    // スナップ
     const char* snapLabels[] = { "1/4", "1/8", "1/16", "1/32" };
     const float snapValues[] = { 1.0f, 0.5f, 0.25f, 0.125f };
     int snapIdx = 2;
@@ -351,33 +384,26 @@ void TimelineEditor::renderControls()
 
     ImGui::SameLine();
 
-    // ズーム
     ImGui::SetNextItemWidth(120.0f);
     ImGui::SliderFloat("Zoom", &m_zoomBeats, 4.0f, 64.0f, "%.0f beats");
 
     ImGui::SameLine();
 
-    // イベントタイプ
-    const char* typeLabels[] = { "Enemy", "Hold", "Orb", "Barrier" };
+    const char* typeLabels[] = { "Enemy", "Hold", "Orb", "Barrier", "Rainbow" };
     int typeIdx = static_cast<int>(m_selectedType);
-    ImGui::SetNextItemWidth(90.0f);
-    if (ImGui::Combo("Type", &typeIdx, typeLabels, 4))
+    ImGui::SetNextItemWidth(100.0f);
+    if (ImGui::Combo("Type", &typeIdx, typeLabels, 5))
     {
         m_selectedType = static_cast<EventType>(typeIdx);
-        m_holdPending  = false;  // タイプ変更でキャンセル
+        m_holdPending  = false;
     }
 
     ImGui::SameLine();
 
-    // オフセット
     ImGui::SetNextItemWidth(90.0f);
     ImGui::InputFloat("Offset(s)", &m_offsetSec, 0.01f, 0.1f, "%.3f");
 
-    ImGui::SameLine();
-
-    ImGui::TextDisabled("");
-
-    // ---- 2行目: 音楽 & トランスポート ----
+    // ---- 3行目: 音楽 & トランスポート ----
     ImGui::SetNextItemWidth(220.0f);
     ImGui::InputText("Music", m_musicBuf, sizeof(m_musicBuf));
     ImGui::SameLine();
@@ -401,7 +427,6 @@ void TimelineEditor::renderControls()
     ImGui::SameLine();
     ImGui::Spacing(); ImGui::SameLine();
 
-    // 再生 / 一時停止
     if (m_audio.isPlaying())
     {
         if (ImGui::Button("  ||  ")) m_audio.pause();
@@ -413,7 +438,6 @@ void TimelineEditor::renderControls()
     ImGui::SameLine();
     if (ImGui::Button("  []  ")) m_audio.stop();
 
-    // マーカー
     ImGui::SameLine();
     ImGui::Spacing(); ImGui::SameLine();
     if (ImGui::Button("[M]"))
@@ -437,7 +461,6 @@ void TimelineEditor::renderControls()
         ImGui::TextDisabled("beat %.2f", m_markerBeat);
     }
 
-    // 再生速度
     ImGui::SameLine();
     const char* speedLabels[] = { "0.25x", "0.5x", "0.75x", "1.0x" };
     const float speedValues[] = { 0.25f, 0.5f, 0.75f, 1.0f };
@@ -445,13 +468,11 @@ void TimelineEditor::renderControls()
     if (ImGui::Combo("Speed", &m_speedIdx, speedLabels, 4))
         m_audio.setSpeed(speedValues[m_speedIdx]);
 
-    // BGM 音量
     ImGui::SameLine();
     ImGui::SetNextItemWidth(100.0f);
     if (ImGui::SliderFloat("Vol", &m_bgmVolume, 0.0f, 1.0f, "%.2f"))
         m_audio.setVolume(m_bgmVolume);
 
-    // 現在時刻と beat 表示
     if (m_audio.isLoaded())
     {
         float t    = m_audio.currentTimeSeconds() - m_offsetSec;
@@ -461,13 +482,18 @@ void TimelineEditor::renderControls()
         ImGui::Text("%.2f / %.2f sec   beat: %.2f", t, dur, beat);
     }
 
-    // Hold pending 表示
+    // Hold / Rainbow pending 表示
     if (m_holdPending)
     {
         ImGui::SameLine();
-        ImGui::TextColored(ImVec4(0.3f, 0.6f, 1.0f, 1.0f),
-            "  [Hold] 始点設定済み (wall=%s beat=%.2f) - 終点をクリック / Esc でキャンセル",
-            wallLabel(m_holdStartWall), m_holdStartBeat);
+        if (m_selectedType == EventType::Hold)
+            ImGui::TextColored(ImVec4(0.3f, 0.6f, 1.0f, 1.0f),
+                "  [Hold] 始点: wall=%s lane=%d beat=%.2f - 同一壁をクリック / Esc でキャンセル",
+                wallLabel(m_holdStartWall), m_holdStartLane, m_holdStartBeat);
+        else
+            ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.7f, 1.0f),
+                "  [Rainbow] 始点: wall=%s beat=%.2f - 終点をクリック / Esc でキャンセル",
+                wallLabel(m_holdStartWall), m_holdStartBeat);
     }
 }
 
@@ -617,35 +643,70 @@ void TimelineEditor::renderTimeline()
 
         if (e.type == EventType::Hold)
         {
-            float x2   = beatToX(e.endBeat);
-            float sy = wallRowY(e.wall);
-            float ey = wallRowY(e.endWall);
+            // Hold: 同一壁・レーンまたぎ可
+            float x2  = beatToX(e.endBeat);
+            int   wi  = static_cast<int>(e.wall);
+            float sy  = origin.y + headerHeight + (wi * 3 + e.lane)    * rowHeight;
+            float ey  = origin.y + headerHeight + (wi * 3 + e.endLane) * rowHeight;
 
-            if (e.wall == e.endWall)
+            if (x2 > clipL && x < clipR)
             {
-                // 同一壁: 横バー
-                float y1 = sy + 2;
-                float y2 = sy + 3 * rowHeight - 2;
-                if (x2 > clipL && x < clipR)
+                if (e.lane == e.endLane)
                 {
+                    // 同一レーン: 矩形
+                    float y1 = sy + 2;
+                    float y2 = sy + rowHeight - 2;
                     dl->AddRectFilled(ImVec2(std::max(x, clipL), y1),
                                       ImVec2(std::min(x2, clipR), y2), col);
                     dl->AddRect(ImVec2(std::max(x, clipL), y1),
                                 ImVec2(std::min(x2, clipR), y2),
-                                IM_COL32(200, 220, 255, 200), 3.0f);
+                                IM_COL32(200, 220, 255, 200), 2.0f);
+                }
+                else
+                {
+                    // レーンまたぎ: 平行四辺形（太さ = レーン1行分）
+                    ImVec2 p1(x,  sy + 2);
+                    ImVec2 p2(x,  sy + rowHeight - 2);
+                    ImVec2 p3(x2, ey + rowHeight - 2);
+                    ImVec2 p4(x2, ey + 2);
+                    dl->AddQuadFilled(p1, p2, p3, p4, col);
+                    dl->AddQuad(p1, p2, p3, p4, IM_COL32(200, 220, 255, 200), 2.0f);
+                }
+            }
+        }
+        else if (e.type == EventType::Rainbow)
+        {
+            // Rainbow: 壁全体（3レーン）・壁またぎ平行四辺形
+            float x2 = beatToX(e.endBeat);
+            float sy  = wallRowY(e.wall);
+            float ey  = wallRowY(e.endWall);
+
+            if (e.wall == e.endWall)
+            {
+                float y1 = sy + 2;
+                float y2 = sy + 3 * rowHeight - 2;
+                if (x2 > clipL && x < clipR)
+                {
+                    float lx = std::max(x, clipL);
+                    float rx = std::min(x2, clipR);
+                    // 虹色グラデーション（上から赤・青・緑）
+                    float bH = (y2 - y1) / 3.0f;
+                    dl->AddRectFilled(ImVec2(lx, y1),        ImVec2(rx, y1 + bH),     IM_COL32(255,  80,  80, 200));
+                    dl->AddRectFilled(ImVec2(lx, y1 + bH),   ImVec2(rx, y1 + 2*bH),   IM_COL32( 80, 160, 255, 200));
+                    dl->AddRectFilled(ImVec2(lx, y1 + 2*bH), ImVec2(rx, y2),           IM_COL32( 80, 255, 150, 200));
+                    dl->AddRect(ImVec2(lx, y1), ImVec2(rx, y2), IM_COL32(255, 255, 255, 200), 3.0f);
                 }
             }
             else
             {
-                // 壁またぎ: 始点上下・終点上下を結んだ四角形（平行四辺形）
                 if (x2 > clipL && x < clipR)
                 {
-                    ImVec2 p1(x,  sy + 2);                   // 始点・上
-                    ImVec2 p2(x,  sy + 3 * rowHeight - 2);   // 始点・下
-                    ImVec2 p3(x2, ey + 3 * rowHeight - 2);   // 終点・下
-                    ImVec2 p4(x2, ey + 2);                   // 終点・上
+                    ImVec2 p1(x,  sy + 2);
+                    ImVec2 p2(x,  sy + 3 * rowHeight - 2);
+                    ImVec2 p3(x2, ey + 3 * rowHeight - 2);
+                    ImVec2 p4(x2, ey + 2);
                     dl->AddQuadFilled(p1, p2, p3, p4, col);
-                    dl->AddQuad(p1, p2, p3, p4, IM_COL32(200, 220, 255, 200), 2.0f);
+                    dl->AddQuad(p1, p2, p3, p4, IM_COL32(255, 255, 255, 200), 2.0f);
                 }
             }
         }
@@ -720,17 +781,31 @@ void TimelineEditor::renderTimeline()
         }
     }
 
-    // Hold pending フィードバック（始点マーカー）
+    // Hold / Rainbow pending フィードバック（始点マーカー）
     if (m_holdPending)
     {
-        float px  = beatToX(m_holdStartBeat);
-        float sy  = wallRowY(m_holdStartWall);
+        float px = beatToX(m_holdStartBeat);
         if (px >= clipL && px <= clipR)
         {
-            dl->AddLine(ImVec2(px, sy),
-                        ImVec2(px, sy + 3 * rowHeight),
-                        IM_COL32(80, 160, 255, 180), 2.0f);
-            dl->AddText(ImVec2(px + 3, sy + 2), IM_COL32(80, 160, 255, 255), "H>");
+            if (m_selectedType == EventType::Hold)
+            {
+                // Hold: 単一レーン行に縦バー
+                int   row  = static_cast<int>(m_holdStartWall) * 3 + m_holdStartLane;
+                float rowY = origin.y + headerHeight + row * rowHeight;
+                dl->AddLine(ImVec2(px, rowY),
+                            ImVec2(px, rowY + rowHeight),
+                            IM_COL32(80, 160, 255, 180), 2.0f);
+                dl->AddText(ImVec2(px + 3, rowY + 2), IM_COL32(80, 160, 255, 255), "H>");
+            }
+            else
+            {
+                // Rainbow: 壁全体（3レーン）に縦バー
+                float sy = wallRowY(m_holdStartWall);
+                dl->AddLine(ImVec2(px, sy),
+                            ImVec2(px, sy + 3 * rowHeight),
+                            IM_COL32(50, 255, 180, 180), 2.0f);
+                dl->AddText(ImVec2(px + 3, sy + 2), IM_COL32(50, 255, 180, 255), "R>");
+            }
         }
     }
 
@@ -863,16 +938,61 @@ void TimelineEditor::renderTimeline()
                         if (!m_holdPending)
                         {
                             // 1回目: 始点記録
+                            m_holdPending     = true;
+                            m_holdStartBeat   = beat;
+                            m_holdStartWall   = clickWall;
+                            m_holdStartLane   = clickLane;
+                        }
+                        else
+                        {
+                            // 2回目: 同一壁のみ
+                            if (clickWall != m_holdStartWall)
+                            {
+                                m_statusMsg = "Hold は同一壁のみ使用可能です";
+                                m_statusOk  = false;
+                            }
+                            else
+                            {
+                                pushUndo();
+                                Event e;
+                                e.type    = EventType::Hold;
+                                e.wall    = m_holdStartWall;
+                                e.endWall = m_holdStartWall;
+                                // beat が早い方を始点にして lane/endLane を対応させる
+                                if (m_holdStartBeat <= beat)
+                                {
+                                    e.beat    = m_holdStartBeat;
+                                    e.endBeat = beat;
+                                    e.lane    = m_holdStartLane;
+                                    e.endLane = clickLane;
+                                }
+                                else
+                                {
+                                    e.beat    = beat;
+                                    e.endBeat = m_holdStartBeat;
+                                    e.lane    = clickLane;
+                                    e.endLane = m_holdStartLane;
+                                }
+                                m_chart.events.push_back(e);
+                                m_holdPending = false;
+                            }
+                        }
+                    }
+                    else if (m_selectedType == EventType::Rainbow)
+                    {
+                        if (!m_holdPending)
+                        {
+                            // 1回目: 始点記録
                             m_holdPending   = true;
                             m_holdStartBeat = beat;
                             m_holdStartWall = clickWall;
                         }
                         else
                         {
-                            // 2回目: Hold 生成（壁またぎ可）
+                            // 2回目: 壁またぎ可
                             pushUndo();
                             Event e;
-                            e.type    = EventType::Hold;
+                            e.type    = EventType::Rainbow;
                             e.wall    = m_holdStartWall;
                             e.endWall = clickWall;
                             e.lane    = 1;
@@ -905,7 +1025,16 @@ void TimelineEditor::renderTimeline()
                     ev.erase(std::remove_if(ev.begin(), ev.end(), [&](const Event& e) {
                         if (e.type == EventType::Hold)
                         {
-                            // クリックした壁が始点か終点に一致し、beat範囲内なら削除
+                            // Hold: 同一壁・クリックレーンが [lane, endLane] 範囲内・beat範囲内
+                            bool beatMatch = (beat >= e.beat - m_snapBeat * 0.5f &&
+                                             beat <= e.endBeat + m_snapBeat * 0.5f);
+                            bool laneMatch = (clickLane >= std::min(e.lane, e.endLane) &&
+                                             clickLane <= std::max(e.lane, e.endLane));
+                            return e.wall == clickWall && laneMatch && beatMatch;
+                        }
+                        if (e.type == EventType::Rainbow)
+                        {
+                            // Rainbow: 始点か終点の壁に一致し、beat範囲内なら削除
                             bool wallMatch = (e.wall == clickWall || e.endWall == clickWall);
                             bool beatMatch = (beat >= e.beat - m_snapBeat * 0.5f &&
                                              beat <= e.endBeat + m_snapBeat * 0.5f);
@@ -1014,7 +1143,7 @@ void TimelineEditor::toggleEvent(float beat, Wall wall, int lane)
     auto& ev = m_chart.events;
 
     auto it = std::find_if(ev.begin(), ev.end(), [&](const Event& e) {
-        if (e.type == EventType::Hold) return false;
+        if (e.type == EventType::Hold || e.type == EventType::Rainbow) return false;
         return fabsf(e.beat - beat) < m_snapBeat * 0.5f
             && e.wall == wall && e.lane == lane;
     });

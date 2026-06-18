@@ -9,6 +9,7 @@ struct Event
     EventType type    = EventType::Enemy;
 
     Wall      wall    = Wall::Up;
-    Wall      endWall = Wall::Up;  // Hold のみ使用（壁またぎ対応）
-    int       lane    = 0;         // 0-2 (wall 内のレーン番号)、Hold は常に 1
+    Wall      endWall = Wall::Up;  // Rainbow のみ使用（壁またぎ対応）
+    int       lane    = 0;         // 0-2 (wall 内のレーン番号)、Rainbow は常に 1
+    int       endLane = 0;         // Hold のみ使用（レーンまたぎ対応）
 };

@@ -2,7 +2,8 @@
 #include <fstream>
 #include <nlohmann/json.hpp>
 
-using json = nlohmann::json;
+using json  = nlohmann::json;
+using ojson = nlohmann::ordered_json;
 
 // ---- 文字列変換ヘルパー ----
 
@@ -10,19 +11,21 @@ static std::string eventTypeToString(EventType t)
 {
     switch (t)
     {
-    case EventType::Enemy:    return "Tap";
-    case EventType::Hold:   return "Hold";
-    case EventType::Orb:    return "Orb";
+    case EventType::Enemy:   return "Tap";
+    case EventType::Hold:    return "Hold";
+    case EventType::Orb:     return "Orb";
     case EventType::Barrier: return "Barrier";
-    default:                return "Tap";
+    case EventType::Rainbow: return "Rainbow";
+    default:                 return "Tap";
     }
 }
 
 static EventType stringToEventType(const std::string& s)
 {
-    if (s == "Hold")   return EventType::Hold;
-    if (s == "Orb")    return EventType::Orb;
+    if (s == "Hold")    return EventType::Hold;
+    if (s == "Orb")     return EventType::Orb;
     if (s == "Barrier") return EventType::Barrier;
+    if (s == "Rainbow") return EventType::Rainbow;
     return EventType::Enemy;
 }
 
@@ -50,20 +53,30 @@ static Wall stringToWall(const std::string& s)
 
 bool ChartIO::save(const Chart& chart, const std::string& filePath)
 {
-    json j;
-    j["music"] = chart.musicPath;
-    j["bpm"]   = chart.bpm;
+    ojson j;
+    j["musicname"]   = chart.musicname;
+    j["musicauthor"] = chart.musicauthor;
+    j["scoreauthor"] = chart.scoreauthor;
+    j["difficulty"]  = chart.difficulty;
+    j["thumbnail"]   = chart.thumbnail;
+    j["bpm"]         = chart.bpm;
+    j["music"]       = chart.musicPath;
 
-    json eventsJson = json::array();
+    ojson eventsJson = ojson::array();
     for (const auto& e : chart.events)
     {
-        json ej;
+        ojson ej;
         ej["beat"] = e.beat;
         ej["type"] = eventTypeToString(e.type);
         ej["wall"] = wallToString(e.wall);
         ej["lane"] = e.lane;
 
         if (e.type == EventType::Hold)
+        {
+            ej["endBeat"] = e.endBeat;
+            ej["endLane"] = e.endLane;
+        }
+        if (e.type == EventType::Rainbow)
         {
             ej["endBeat"] = e.endBeat;
             ej["endWall"] = wallToString(e.endWall);
@@ -97,8 +110,13 @@ bool ChartIO::load(const std::string& filePath, Chart& out)
         return false;
     }
 
-    out.musicPath = j.value("music", "");
-    out.bpm       = j.value("bpm", 120.0f);
+    out.musicname   = j.value("musicname",   "");
+    out.musicauthor = j.value("musicauthor", "");
+    out.scoreauthor = j.value("scoreauthor", "");
+    out.difficulty  = j.value("difficulty",  0.0f);
+    out.thumbnail   = j.value("thumbnail",   "");
+    out.bpm         = j.value("bpm",         120.0f);
+    out.musicPath   = j.value("music",       "");
     out.events.clear();
 
     for (const auto& ej : j.value("events", json::array()))
@@ -112,12 +130,20 @@ bool ChartIO::load(const std::string& filePath, Chart& out)
         if (e.type == EventType::Hold)
         {
             e.endBeat = ej.value("endBeat", e.beat);
+            e.endLane = ej.value("endLane", e.lane);
+            e.endWall = e.wall;
+        }
+        else if (e.type == EventType::Rainbow)
+        {
+            e.endBeat = ej.value("endBeat", e.beat);
             e.endWall = stringToWall(ej.value("endWall", wallToString(e.wall)));
+            e.endLane = 1;
         }
         else
         {
             e.endBeat = e.beat;
             e.endWall = e.wall;
+            e.endLane = e.lane;
         }
 
         out.events.push_back(e);
