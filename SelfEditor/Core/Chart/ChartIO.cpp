@@ -61,6 +61,7 @@ bool ChartIO::save(const Chart& chart, const std::string& filePath)
     j["thumbnail"]   = chart.thumbnail;
     j["bpm"]         = chart.bpm;
     j["music"]       = chart.musicPath;
+    j["offset"]      = chart.offset;
 
     ojson eventsJson = ojson::array();
     for (const auto& e : chart.events)
@@ -117,6 +118,7 @@ bool ChartIO::load(const std::string& filePath, Chart& out)
     out.thumbnail   = j.value("thumbnail",   "");
     out.bpm         = j.value("bpm",         120.0f);
     out.musicPath   = j.value("music",       "");
+	out.offset      = j.value("offset", 0.0f);
     out.events.clear();
 
     for (const auto& ej : j.value("events", json::array()))

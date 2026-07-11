@@ -12,5 +12,6 @@ struct Chart
     std::string        thumbnail;
     float              bpm = 120.0f;
     std::string        musicPath;
+	float 			offset = 0.0f;
     std::vector<Event> events;
 };

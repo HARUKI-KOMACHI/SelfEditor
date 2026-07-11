@@ -43,6 +43,9 @@
 - エディタ UI 3段構成化（Row1: メタデータ、Row2: ファイル/BPM/スナップ/ズーム/タイプ/オフセット、Row3: 音楽/トランスポート）
 - JSON 保存キー順序の修正（`nlohmann::ordered_json` 使用、挿入順を保持）
 - 日本語フォント対応（`C:\Windows\Fonts\meiryo.ttc` + `GetGlyphRangesJapanese()` で全角入力サポート）
+- Offset値のJSON保存/読込対応（`Chart::offset` フィールド追加、Save/Open時に `m_offsetSec` と同期）
+- File/Thumbnail/Music にネイティブファイル選択ダイアログ（`...` ボタン、Win32 `GetOpenFileNameA`）を追加。File欄は選択した絶対パスをそのまま使用、Thumbnail/Musicはファイル名のみ抽出して既存の相対パス規約を維持
+- 音楽フォルダ移動（`Assets/music/` → ルート直下 `music/`）に伴うパス参照修正、譜面JSONの既定保存先を `json/` フォルダに変更
 
 ### 作業未着手
 （なし）
@@ -62,7 +65,7 @@ Visual Studio 2022 で `SelfEditor/SelfEditor.sln` を開き、IDE からビル�
 msbuild SelfEditor/SelfEditor.sln /p:Configuration=Debug /p:Platform=x64
 ```
 
-Release ビルドの実行には exe と同ディレクトリに `Assets/` フォルダを配置すること。
+Release ビルドの実行には exe と同ディレクトリに `Assets/`・`music/`・`json/` フォルダを配置すること。
 
 ## 推奨ディレクトリ構造
 
@@ -77,9 +80,10 @@ SelfEditor/
 │   └ Event/       # イベント定義
 ├ Game/            # ゲーム側の簡易イベント再生
 ├ Editor/          # ImGui ベースのエディタ UI
-└ Assets/          # 音楽ファイル、JSON 譜面ファイル
-    ├ music/
-    └ SE/
+├ Assets/          # SE・エディタ設定
+│   └ SE/
+├ music/           # 音楽ファイル（ルート直下）
+└ json/            # 譜面 JSON ファイル（ルート直下、既定の保存先）
 ```
 
 `Core/` は `Game/` と `Editor/` の両方から共有される。
@@ -146,7 +150,8 @@ struct Event {
 ```
 
 キー順序は `nlohmann::ordered_json` により挿入順を保持。
-音楽ファイルは `Assets/music/` に配置し、Music 欄にはファイル名のみ入力（`Assets/music/` は自動付加）。
+音楽ファイルは `music/` に配置し、Music 欄にはファイル名のみ入力（`music/` は自動付加）。
+譜面 JSON ファイルは `json/` に配置し、`File` 欄にはファイル名のみ入力（`json/` は自動付加、既定値: `.json`）。
 
 ## エディタ操作
 
