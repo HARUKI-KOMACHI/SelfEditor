@@ -2,6 +2,7 @@
 #include <imgui.h>
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <fstream>
 #include <nlohmann/json.hpp>
 #include "../Core/Chart/ChartIO.h"
@@ -40,6 +41,33 @@ static std::string extractFileName(const std::string& path)
 {
     size_t pos = path.find_last_of("\\/");
     return (pos == std::string::npos) ? path : path.substr(pos + 1);
+}
+
+// 入力欄の文字列から実際の読み込み/保存パスを組み立てる。
+// ファイル名のみ（区切り文字を含まない）なら json/ を自動付加、
+// 絶対パス/相対パスらしき文字列（: \ / を含む）ならそのまま使う。
+static std::string resolveJsonFilePath(const std::string& buf)
+{
+    if (buf.find(':') != std::string::npos ||
+        buf.find('\\') != std::string::npos ||
+        buf.find('/') != std::string::npos)
+        return buf;
+    return "json/" + buf;
+}
+
+// ダイアログで選んだ絶対パスが json/ フォルダ内なら「ファイル名のみ」、
+// それ以外なら「絶対パスそのまま」を File 欄の表示用文字列として返す。
+static std::string makeFileDisplayPath(const std::string& absPath)
+{
+    char jsonDirAbs[MAX_PATH] = {};
+    GetFullPathNameA("json", MAX_PATH, jsonDirAbs, nullptr);
+
+    size_t pos = absPath.find_last_of("\\/");
+    std::string dir = (pos == std::string::npos) ? "" : absPath.substr(0, pos);
+
+    if (_stricmp(dir.c_str(), jsonDirAbs) == 0)
+        return extractFileName(absPath);
+    return absPath;
 }
 
 static const char* seNameForType(EventType t)
@@ -315,9 +343,9 @@ void TimelineEditor::renderMenuBar()
             std::string picked;
             if (browseOpenFile("Chart JSON (*.json)\0*.json\0All Files (*.*)\0*.*\0\0", picked, "json"))
             {
-                std::string name = extractFileName(picked);
-                snprintf(m_filePathBuf, sizeof(m_filePathBuf), "%s", name.c_str());
-                m_filePath = "json/" + name;
+                std::string display = makeFileDisplayPath(picked);
+                snprintf(m_filePathBuf, sizeof(m_filePathBuf), "%s", display.c_str());
+                m_filePath = resolveJsonFilePath(display);
 
                 Chart tmp;
                 if (ChartIO::load(m_filePath, tmp))
@@ -412,7 +440,7 @@ void TimelineEditor::renderControls()
     // ---- 2行目: ファイル・BPM・スナップ・ズーム・タイプ・オフセット ----
     ImGui::SetNextItemWidth(200.0f);
     if (ImGui::InputText("File", m_filePathBuf, sizeof(m_filePathBuf)))
-        m_filePath = "json/" + std::string(m_filePathBuf);
+        m_filePath = resolveJsonFilePath(m_filePathBuf);
 
     ImGui::SameLine();
 
