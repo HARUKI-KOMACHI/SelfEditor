@@ -1,0 +1,27 @@
+{
+  "musicname": "森田交一",
+  "musicauthor": "another",
+  "scoreauthor": "H./K",
+  "difficulty": 3.0,
+  "thumbnail": "shiningstar.png",
+  "bpm": 158.0,
+  "music": "",
+  "events": [
+    {
+      "beat": 16.0,
+      "type": "Rainbow",
+      "wall": "Down",
+      "lane": 1,
+      "endBeat": 24.0,
+      "endWall": "Left"
+    },
+    {
+      "beat": 40.0,
+      "type": "Rainbow",
+      "wall": "Up",
+      "lane": 1,
+      "endBeat": 52.0,
+      "endWall": "Right"
+    }
+  ]
+}
