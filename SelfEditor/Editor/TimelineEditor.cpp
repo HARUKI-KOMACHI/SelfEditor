@@ -2,16 +2,73 @@
 #include <imgui.h>
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <fstream>
 #include <nlohmann/json.hpp>
 #include "../Core/Chart/ChartIO.h"
 #include "../Core/Timing/Timing.h"
+
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <commdlg.h>
+#pragma comment(lib, "comdlg32.lib")
 
 using json = nlohmann::json;
 
 static constexpr const char* kEditorSettingsPath = "Assets/editor_settings.json";
 
 // ---- ヘルパー ----
+
+// ファイル選択ダイアログ（絶対パスを返す）。OFN_NOCHANGEDIR でカレントディレクトリの変更を防ぐ
+// （music/ などの相対パス読み込みに依存しているため）
+static bool browseOpenFile(const char* filter, std::string& outPath, const char* initialDir = nullptr)
+{
+    char buf[MAX_PATH] = {};
+    OPENFILENAMEA ofn = {};
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner   = GetActiveWindow();
+    ofn.lpstrFilter = filter;
+    ofn.lpstrFile   = buf;
+    ofn.nMaxFile    = MAX_PATH;
+    ofn.lpstrInitialDir = initialDir;
+    ofn.Flags       = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
+    if (!GetOpenFileNameA(&ofn)) return false;
+    outPath = buf;
+    return true;
+}
+
+static std::string extractFileName(const std::string& path)
+{
+    size_t pos = path.find_last_of("\\/");
+    return (pos == std::string::npos) ? path : path.substr(pos + 1);
+}
+
+// 入力欄の文字列から実際の読み込み/保存パスを組み立てる。
+// ファイル名のみ（区切り文字を含まない）なら json/ を自動付加、
+// 絶対パス/相対パスらしき文字列（: \ / を含む）ならそのまま使う。
+static std::string resolveJsonFilePath(const std::string& buf)
+{
+    if (buf.find(':') != std::string::npos ||
+        buf.find('\\') != std::string::npos ||
+        buf.find('/') != std::string::npos)
+        return buf;
+    return "json/" + buf;
+}
+
+// ダイアログで選んだ絶対パスが json/ フォルダ内なら「ファイル名のみ」、
+// それ以外なら「絶対パスそのまま」を File 欄の表示用文字列として返す。
+static std::string makeFileDisplayPath(const std::string& absPath)
+{
+    char jsonDirAbs[MAX_PATH] = {};
+    GetFullPathNameA("json", MAX_PATH, jsonDirAbs, nullptr);
+
+    size_t pos = absPath.find_last_of("\\/");
+    std::string dir = (pos == std::string::npos) ? "" : absPath.substr(0, pos);
+
+    if (_stricmp(dir.c_str(), jsonDirAbs) == 0)
+        return extractFileName(absPath);
+    return absPath;
+}
 
 static const char* seNameForType(EventType t)
 {
@@ -277,38 +334,49 @@ void TimelineEditor::renderMenuBar()
         if (ImGui::MenuItem("New"))
         {
             m_chart = Chart();
+            m_offsetSec = m_chart.offset;
             m_statusMsg = "New chart.";
             m_statusOk = true;
         }
         if (ImGui::MenuItem("Open"))
         {
-            Chart tmp;
-            if (ChartIO::load(m_filePath, tmp))
+            std::string picked;
+            if (browseOpenFile("Chart JSON (*.json)\0*.json\0All Files (*.*)\0*.*\0\0", picked, "json"))
             {
-                m_chart = tmp;
-                m_statusMsg = "Loaded: " + m_filePath;
-                m_statusOk = true;
+                std::string display = makeFileDisplayPath(picked);
+                snprintf(m_filePathBuf, sizeof(m_filePathBuf), "%s", display.c_str());
+                m_filePath = resolveJsonFilePath(display);
 
-                // メタデータバッファに反映
-                snprintf(m_musicnameBuf,   sizeof(m_musicnameBuf),   "%s", m_chart.musicname.c_str());
-                snprintf(m_musicauthorBuf, sizeof(m_musicauthorBuf), "%s", m_chart.musicauthor.c_str());
-                snprintf(m_scoreauthorBuf, sizeof(m_scoreauthorBuf), "%s", m_chart.scoreauthor.c_str());
-                snprintf(m_thumbnailBuf,   sizeof(m_thumbnailBuf),   "%s", m_chart.thumbnail.c_str());
-
-                if (!m_chart.musicPath.empty())
+                Chart tmp;
+                if (ChartIO::load(m_filePath, tmp))
                 {
-                    snprintf(m_musicBuf, sizeof(m_musicBuf), "%s", m_chart.musicPath.c_str());
-                    m_musicPath = "Assets/music/" + m_chart.musicPath;
-                    if (!m_audio.load(m_musicPath))
-                        m_statusMsg += "  (music load failed)";
-                    else
-                        buildWaveform();
+                    m_chart = tmp;
+                    m_offsetSec = m_chart.offset;
+                    m_statusMsg = "Loaded: " + m_filePath;
+                    m_statusOk = true;
+
+                    // メタデータバッファに反映
+                    snprintf(m_musicnameBuf,   sizeof(m_musicnameBuf),   "%s", m_chart.musicname.c_str());
+                    snprintf(m_musicauthorBuf, sizeof(m_musicauthorBuf), "%s", m_chart.musicauthor.c_str());
+                    snprintf(m_scoreauthorBuf, sizeof(m_scoreauthorBuf), "%s", m_chart.scoreauthor.c_str());
+                    snprintf(m_thumbnailBuf,   sizeof(m_thumbnailBuf),   "%s", m_chart.thumbnail.c_str());
+
+                    if (!m_chart.musicPath.empty())
+                    {
+                        snprintf(m_musicBuf, sizeof(m_musicBuf), "%s", m_chart.musicPath.c_str());
+                        m_musicPath = "music/" + m_chart.musicPath;
+                        if (!m_audio.load(m_musicPath))
+                            m_statusMsg += "  (music load failed)";
+                        else
+                            buildWaveform();
+                    }
                 }
+                else { m_statusMsg = "Load failed: " + m_filePath; m_statusOk = false; }
             }
-            else { m_statusMsg = "Load failed: " + m_filePath; m_statusOk = false; }
         }
         if (ImGui::MenuItem("Save"))
         {
+            m_chart.offset = m_offsetSec;
             if (ChartIO::save(m_chart, m_filePath)) { m_statusMsg = "Saved: " + m_filePath; m_statusOk = true; }
             else { m_statusMsg = "Save failed: " + m_filePath; m_statusOk = false; }
         }
@@ -358,12 +426,21 @@ void TimelineEditor::renderControls()
     ImGui::SetNextItemWidth(150.0f);
     if (ImGui::InputText("Thumbnail", m_thumbnailBuf, sizeof(m_thumbnailBuf)))
         m_chart.thumbnail = m_thumbnailBuf;
+    ImGui::SameLine();
+    if (ImGui::Button("...##thumb"))
+    {
+        std::string picked;
+        if (browseOpenFile("Image Files\0*.png;*.jpg;*.jpeg;*.bmp\0All Files (*.*)\0*.*\0\0", picked,"thumbnail"))
+        {
+            snprintf(m_thumbnailBuf, sizeof(m_thumbnailBuf), "%s", extractFileName(picked).c_str());
+            m_chart.thumbnail = m_thumbnailBuf;
+        }
+    }
 
     // ---- 2行目: ファイル・BPM・スナップ・ズーム・タイプ・オフセット ----
-    static char pathBuf[256] = ".json";
     ImGui::SetNextItemWidth(200.0f);
-    if (ImGui::InputText("File", pathBuf, sizeof(pathBuf)))
-        m_filePath = pathBuf;
+    if (ImGui::InputText("File", m_filePathBuf, sizeof(m_filePathBuf)))
+        m_filePath = resolveJsonFilePath(m_filePathBuf);
 
     ImGui::SameLine();
 
@@ -407,9 +484,16 @@ void TimelineEditor::renderControls()
     ImGui::SetNextItemWidth(220.0f);
     ImGui::InputText("Music", m_musicBuf, sizeof(m_musicBuf));
     ImGui::SameLine();
+    if (ImGui::Button("...##music"))
+    {
+        std::string picked;
+        if (browseOpenFile("Audio Files\0*.wav;*.mp3\0All Files (*.*)\0*.*\0\0", picked, "music"))
+            snprintf(m_musicBuf, sizeof(m_musicBuf), "%s", extractFileName(picked).c_str());
+    }
+    ImGui::SameLine();
     if (ImGui::Button("Load"))
     {
-        m_musicPath = "Assets/music/" + std::string(m_musicBuf);
+        m_musicPath = "music/" + std::string(m_musicBuf);
         if (m_audio.load(m_musicPath))
         {
             m_chart.musicPath = std::string(m_musicBuf);

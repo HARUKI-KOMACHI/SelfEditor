@@ -27,7 +27,8 @@ private:
     float       m_zoomBeats = 16.0f;
     float       m_snapBeat = 0.25f;
     float       m_offsetSec = 0.0f;
-    std::string m_filePath = "chart.json";
+    std::string m_filePath = "json/.json";
+    char        m_filePathBuf[260] = ".json";  // 「File」欄表示用（ファイル名のみ、json/はコード側で自動付加）
     std::string m_statusMsg;
     bool        m_statusOk = true;
 

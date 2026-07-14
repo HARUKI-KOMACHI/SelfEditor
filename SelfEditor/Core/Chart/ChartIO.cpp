@@ -11,7 +11,7 @@ static std::string eventTypeToString(EventType t)
 {
     switch (t)
     {
-    case EventType::Enemy:   return "Tap";
+    case EventType::Enemy:   return "Enemy";
     case EventType::Hold:    return "Hold";
     case EventType::Orb:     return "Orb";
     case EventType::Barrier: return "Barrier";
@@ -71,6 +71,7 @@ bool ChartIO::save(const Chart& chart, const std::string& filePath)
     j["thumbnail"]   = chart.thumbnail;
     j["bpm"]         = chart.bpm;
     j["music"]       = chart.musicPath;
+    j["offset"]      = chart.offset;
 
     ojson eventsJson = ojson::array();
     for (const auto& e : chart.events)
@@ -128,13 +129,14 @@ bool ChartIO::load(const std::string& filePath, Chart& out)
     out.thumbnail   = j.value("thumbnail",   "");
     out.bpm         = j.value("bpm",         120.0f);
     out.musicPath   = j.value("music",       "");
+	out.offset      = j.value("offset", 0.0f);
     out.events.clear();
 
     for (const auto& ej : j.value("events", json::array()))
     {
         Event e;
         e.beat = ej.value("beat", 0.0f);
-        e.type = stringToEventType(ej.value("type", "Tap"));
+        e.type = stringToEventType(ej.value("type", "Enemy"));
         e.wall = stringToWall(ej.value("wall", "Up"));
         e.lane = ej.value("lane", 0);
 

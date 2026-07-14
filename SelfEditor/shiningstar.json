@@ -1,51 +1,27 @@
 {
-  "musicname": "シャイニングスター",
-  "musicauthor": "森田交一",
-  "scoreauthor": "小町治樹",
-  "difficulty": 3.5,
+  "musicname": "森田交一",
+  "musicauthor": "another",
+  "scoreauthor": "H./K",
+  "difficulty": 3.0,
   "thumbnail": "shiningstar.png",
-  "bpm": 120.0,
-  "music": "stage01.mp3",
+  "bpm": 158.0,
+  "music": "",
   "events": [
     {
-      "beat": 1.0,
-      "type": "Tap",
-      "wall": "Up",
-      "lane": 0
-    },
-    {
-      "beat": 2.0,
-      "type": "Tap",
-      "wall": "Left",
-      "lane": 0
-    },
-    {
-      "beat": 3.0,
-      "type": "Tap",
-      "wall": "Down",
-      "lane": 0
-    },
-    {
-      "beat": 4.0,
-      "type": "Tap",
-      "wall": "Right",
-      "lane": 0
-    },
-    {
-      "beat": 8.0,
-      "type": "Hold",
-      "wall": "Up",
-      "lane": 0,
-      "endBeat": 12.0,
-      "endLane": 2
-    },
-    {
-      "beat": 12.0,
+      "beat": 16.0,
       "type": "Rainbow",
       "wall": "Down",
       "lane": 1,
-      "endBeat": 16.0,
-      "endWall": "Down"
+      "endBeat": 24.0,
+      "endWall": "Left"
+    },
+    {
+      "beat": 40.0,
+      "type": "Rainbow",
+      "wall": "Up",
+      "lane": 1,
+      "endBeat": 52.0,
+      "endWall": "Right"
     }
   ]
 }
