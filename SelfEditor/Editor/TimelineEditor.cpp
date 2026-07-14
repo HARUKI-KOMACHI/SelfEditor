@@ -1077,7 +1077,12 @@ void TimelineEditor::renderTimeline()
                             for (auto& e : m_chart.events)
                             {
                                 if (e.type != EventType::Rainbow) continue;
-                                bool wallMatch = (e.wall == clickWall || e.endWall == clickWall);
+                                // 表示上の斜め四角形は wall と endWall の壁インデックス間を
+                                // 直線的に通過するため、その間にある壁もヒット対象に含める
+                                int lo = std::min(static_cast<int>(e.wall), static_cast<int>(e.endWall));
+                                int hi = std::max(static_cast<int>(e.wall), static_cast<int>(e.endWall));
+                                bool wallMatch = (static_cast<int>(clickWall) >= lo &&
+                                                 static_cast<int>(clickWall) <= hi);
                                 bool beatMatch = (beat >= e.beat - m_snapBeat * 0.5f &&
                                                  beat <= e.endBeat + m_snapBeat * 0.5f);
                                 if (wallMatch && beatMatch) { hit = &e; break; }
