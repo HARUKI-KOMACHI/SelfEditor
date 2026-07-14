@@ -49,6 +49,16 @@ static Wall stringToWall(const std::string& s)
     return Wall::Up;
 }
 
+static std::string rotationDirToString(RotationDir d)
+{
+    return d == RotationDir::CCW ? "CCW" : "CW";
+}
+
+static RotationDir stringToRotationDir(const std::string& s)
+{
+    return s == "CCW" ? RotationDir::CCW : RotationDir::CW;
+}
+
 // ---- 保存 ----
 
 bool ChartIO::save(const Chart& chart, const std::string& filePath)
@@ -78,8 +88,9 @@ bool ChartIO::save(const Chart& chart, const std::string& filePath)
         }
         if (e.type == EventType::Rainbow)
         {
-            ej["endBeat"] = e.endBeat;
-            ej["endWall"] = wallToString(e.endWall);
+            ej["endBeat"]   = e.endBeat;
+            ej["endWall"]   = wallToString(e.endWall);
+            ej["direction"] = rotationDirToString(e.direction);
         }
 
         eventsJson.push_back(ej);
@@ -135,9 +146,10 @@ bool ChartIO::load(const std::string& filePath, Chart& out)
         }
         else if (e.type == EventType::Rainbow)
         {
-            e.endBeat = ej.value("endBeat", e.beat);
-            e.endWall = stringToWall(ej.value("endWall", wallToString(e.wall)));
-            e.endLane = 1;
+            e.endBeat  = ej.value("endBeat", e.beat);
+            e.endWall  = stringToWall(ej.value("endWall", wallToString(e.wall)));
+            e.endLane  = 1;
+            e.direction = stringToRotationDir(ej.value("direction", "CW"));
         }
         else
         {

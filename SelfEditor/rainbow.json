@@ -1,0 +1,47 @@
+{
+  "musicname": "",
+  "musicauthor": "",
+  "scoreauthor": "",
+  "difficulty": 0.0,
+  "thumbnail": "",
+  "bpm": 120.0,
+  "music": "",
+  "events": [
+    {
+      "beat": 4.25,
+      "type": "Rainbow",
+      "wall": "Up",
+      "lane": 1,
+      "endBeat": 8.0,
+      "endWall": "Left",
+      "direction": "CW"
+    },
+    {
+      "beat": 8.0,
+      "type": "Rainbow",
+      "wall": "Down",
+      "lane": 1,
+      "endBeat": 12.0,
+      "endWall": "Right",
+      "direction": "CCW"
+    },
+    {
+      "beat": 12.0,
+      "type": "Rainbow",
+      "wall": "Left",
+      "lane": 1,
+      "endBeat": 15.75,
+      "endWall": "Up",
+      "direction": "CCW"
+    },
+    {
+      "beat": 16.25,
+      "type": "Rainbow",
+      "wall": "Left",
+      "lane": 1,
+      "endBeat": 20.0,
+      "endWall": "Up",
+      "direction": "CW"
+    }
+  ]
+}

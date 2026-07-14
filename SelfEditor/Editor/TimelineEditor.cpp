@@ -707,6 +707,12 @@ void TimelineEditor::renderTimeline()
                     ImVec2 p4(x2, ey + 2);
                     dl->AddQuadFilled(p1, p2, p3, p4, col);
                     dl->AddQuad(p1, p2, p3, p4, IM_COL32(255, 255, 255, 200), 2.0f);
+
+                    // 回転方向ラベル
+                    const char* dirLabel = (e.direction == RotationDir::CW) ? "R" : "L";
+                    ImVec2 labelPos((std::max(x, clipL) + std::min(x2, clipR)) * 0.5f,
+                                     (sy + ey) * 0.5f + 1.5f * rowHeight - 7.0f);
+                    dl->AddText(labelPos, IM_COL32(255, 255, 255, 255), dirLabel);
                 }
             }
         }
@@ -982,10 +988,30 @@ void TimelineEditor::renderTimeline()
                     {
                         if (!m_holdPending)
                         {
-                            // 1回目: 始点記録
-                            m_holdPending   = true;
-                            m_holdStartBeat = beat;
-                            m_holdStartWall = clickWall;
+                            // 既存 Rainbow ノーツをクリックした場合は回転方向を反転
+                            Event* hit = nullptr;
+                            for (auto& e : m_chart.events)
+                            {
+                                if (e.type != EventType::Rainbow) continue;
+                                bool wallMatch = (e.wall == clickWall || e.endWall == clickWall);
+                                bool beatMatch = (beat >= e.beat - m_snapBeat * 0.5f &&
+                                                 beat <= e.endBeat + m_snapBeat * 0.5f);
+                                if (wallMatch && beatMatch) { hit = &e; break; }
+                            }
+
+                            if (hit)
+                            {
+                                pushUndo();
+                                hit->direction = (hit->direction == RotationDir::CW)
+                                    ? RotationDir::CCW : RotationDir::CW;
+                            }
+                            else
+                            {
+                                // 1回目: 始点記録
+                                m_holdPending   = true;
+                                m_holdStartBeat = beat;
+                                m_holdStartWall = clickWall;
+                            }
                         }
                         else
                         {
@@ -998,6 +1024,13 @@ void TimelineEditor::renderTimeline()
                             e.lane    = 1;
                             e.beat    = std::min(m_holdStartBeat, beat);
                             e.endBeat = std::max(m_holdStartBeat, beat);
+
+                            // デフォルト方向: CW方向の距離が短い方を採用
+                            int startIdx = static_cast<int>(m_holdStartWall);
+                            int endIdx   = static_cast<int>(clickWall);
+                            int cwSteps  = (endIdx - startIdx + 4) % 4;
+                            e.direction  = (cwSteps <= 2) ? RotationDir::CW : RotationDir::CCW;
+
                             m_chart.events.push_back(e);
                             m_holdPending = false;
                         }
