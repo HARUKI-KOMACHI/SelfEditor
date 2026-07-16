@@ -251,26 +251,28 @@ void TimelineEditor::render()
     }
 
     // Delete: 選択範囲のノーツを削除
-    if (ImGui::IsKeyPressed(ImGuiKey_Delete) && m_selectionActive)
+    if (ImGui::IsKeyPressed(ImGuiKey_Delete) || ImGui::IsKeyPressed(ImGuiKey_Backspace))
     {
-        pushUndo();
-        auto& ev = m_chart.events;
-        size_t before = ev.size();
-        ev.erase(std::remove_if(ev.begin(), ev.end(), [&](const Event& e) {
-            if (e.type == EventType::Hold || e.type == EventType::Rainbow)
-                return e.beat >= m_selectStart && e.endBeat <= m_selectEnd;
-            return e.beat >= m_selectStart && e.beat <= m_selectEnd;
-        }), ev.end());
-        size_t removed = before - ev.size();
-        if (removed > 0)
-        {
-            m_statusMsg = std::to_string(removed) + " note(s) deleted.";
-            m_statusOk  = true;
-            m_selectionActive = false;
-        }
-        else
-        {
-            m_undoStack.pop_back();
+        if (m_selectionActive) {
+            pushUndo();
+            auto& ev = m_chart.events;
+            size_t before = ev.size();
+            ev.erase(std::remove_if(ev.begin(), ev.end(), [&](const Event& e) {
+                if (e.type == EventType::Hold || e.type == EventType::Rainbow)
+                    return e.beat >= m_selectStart && e.endBeat <= m_selectEnd;
+                return e.beat >= m_selectStart && e.beat <= m_selectEnd;
+                }), ev.end());
+            size_t removed = before - ev.size();
+            if (removed > 0)
+            {
+                m_statusMsg = std::to_string(removed) + " note(s) deleted.";
+                m_statusOk = true;
+                m_selectionActive = false;
+            }
+            else
+            {
+                m_undoStack.pop_back();
+            }
         }
     }
 
