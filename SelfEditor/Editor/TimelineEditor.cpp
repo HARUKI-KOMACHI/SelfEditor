@@ -216,6 +216,62 @@ void TimelineEditor::render()
             m_statusMsg = std::to_string(m_clipboard.size()) + " note(s) pasted.";
             m_statusOk  = true;
         }
+
+        // Ctrl+X: 選択範囲のノーツをコピーして削除
+        if (ImGui::IsKeyPressed(ImGuiKey_X) && m_selectionActive)
+        {
+            m_clipboard.clear();
+            for (const auto& e : m_chart.events)
+            {
+                if (e.type == EventType::Hold || e.type == EventType::Rainbow)
+                {
+                    if (e.beat >= m_selectStart && e.endBeat <= m_selectEnd)
+                        m_clipboard.push_back(e);
+                }
+                else
+                {
+                    if (e.beat >= m_selectStart && e.beat <= m_selectEnd)
+                        m_clipboard.push_back(e);
+                }
+            }
+            if (!m_clipboard.empty())
+            {
+                pushUndo();
+                auto& ev = m_chart.events;
+                ev.erase(std::remove_if(ev.begin(), ev.end(), [&](const Event& e) {
+                    if (e.type == EventType::Hold || e.type == EventType::Rainbow)
+                        return e.beat >= m_selectStart && e.endBeat <= m_selectEnd;
+                    return e.beat >= m_selectStart && e.beat <= m_selectEnd;
+                }), ev.end());
+                m_statusMsg = std::to_string(m_clipboard.size()) + " note(s) cut.";
+                m_statusOk  = true;
+                m_selectionActive = false;
+            }
+        }
+    }
+
+    // Delete: 選択範囲のノーツを削除
+    if (ImGui::IsKeyPressed(ImGuiKey_Delete) && m_selectionActive)
+    {
+        pushUndo();
+        auto& ev = m_chart.events;
+        size_t before = ev.size();
+        ev.erase(std::remove_if(ev.begin(), ev.end(), [&](const Event& e) {
+            if (e.type == EventType::Hold || e.type == EventType::Rainbow)
+                return e.beat >= m_selectStart && e.endBeat <= m_selectEnd;
+            return e.beat >= m_selectStart && e.beat <= m_selectEnd;
+        }), ev.end());
+        size_t removed = before - ev.size();
+        if (removed > 0)
+        {
+            m_statusMsg = std::to_string(removed) + " note(s) deleted.";
+            m_statusOk  = true;
+            m_selectionActive = false;
+        }
+        else
+        {
+            m_undoStack.pop_back();
+        }
     }
 
     // Space: 再生/一時停止トグル
